@@ -112,19 +112,43 @@ function Read-XmlFileWithRetry {
 }
 
 function Get-SharedRootAccessRules {
-    # No inheritance flags needed: Set-SharedReadExecuteAcl applies these
-    # same explicit rules directly to every item, rather than relying on
-    # OS-level ACE inheritance propagation.
+    param([switch]$IsContainer)
+
+    # Directory ACEs must be inheritable (the (OI)(CI) equivalent), not
+    # just applied to what already exists: `pyenv install` runs *after*
+    # this is first called (from Ensure-PyenvWin, before any version is
+    # installed) and creates brand-new files/folders (install_cache/,
+    # versions/<ver>/...). A first attempt used non-inheritable ACEs on
+    # the theory that explicitly walking every existing item made
+    # inheritance unnecessary -- wrong for exactly this case: it left new
+    # items created later with no inherited grant at all, and CI caught
+    # `pyenv install` itself failing ("core_d component MSI ... Permission
+    # denied") as a direct result. File ACEs don't need inheritance (files
+    # have no children).
+    $inheritanceFlags = if ($IsContainer) {
+        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+    }
+    else {
+        [System.Security.AccessControl.InheritanceFlags]::None
+    }
+    $propagationFlags = [System.Security.AccessControl.PropagationFlags]::None
+
     @(
         [System.Security.AccessControl.FileSystemAccessRule]::new(
             [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18'), # SYSTEM
-            'FullControl', 'Allow')
+            [System.Security.AccessControl.FileSystemRights]::FullControl,
+            $inheritanceFlags, $propagationFlags,
+            [System.Security.AccessControl.AccessControlType]::Allow)
         [System.Security.AccessControl.FileSystemAccessRule]::new(
             [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'), # Administrators
-            'FullControl', 'Allow')
+            [System.Security.AccessControl.FileSystemRights]::FullControl,
+            $inheritanceFlags, $propagationFlags,
+            [System.Security.AccessControl.AccessControlType]::Allow)
         [System.Security.AccessControl.FileSystemAccessRule]::new(
             [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'), # Users
-            'ReadAndExecute', 'Allow')
+            [System.Security.AccessControl.FileSystemRights]::ReadAndExecute,
+            $inheritanceFlags, $propagationFlags,
+            [System.Security.AccessControl.AccessControlType]::Allow)
     )
 }
 
@@ -143,15 +167,18 @@ function Set-SharedReadExecuteAcl {
     # runner image, identically on every retry, which rules out a
     # transient lock. Rather than keep guessing at icacls flag
     # combinations blind, this explicitly resets and rebuilds the ACL on
-    # every item individually (not relying on /T's recursion or on
-    # inheritance propagating a write), and surfaces the real .NET
-    # exception per item if it still fails.
-    $rules = Get-SharedRootAccessRules
+    # every item individually (not relying on /T's recursion), while still
+    # setting inheritable directory ACEs so items created afterward (by
+    # `pyenv install`) pick up the right permissions automatically. On
+    # failure, surfaces the real .NET exception per item.
+    $dirRules = Get-SharedRootAccessRules -IsContainer
+    $fileRules = Get-SharedRootAccessRules
     $items = @(Get-Item -Path $Path -Force) + @(Get-ChildItem -Path $Path -Recurse -Force)
 
     $failures = @()
     foreach ($item in $items) {
         try {
+            $rules = if ($item.PSIsContainer) { $dirRules } else { $fileRules }
             $acl = Get-Acl -Path $item.FullName
             $acl.SetAccessRuleProtection($true, $false)
             foreach ($existing in @($acl.Access)) { $acl.RemoveAccessRule($existing) | Out-Null }
