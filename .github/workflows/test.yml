@@ -270,30 +270,37 @@ jobs:
           python --version
           direnv --version
 
-  gh-cli:
+  # Two jobs, not one shell-parameterized matrix: `shell:` doesn't support
+  # the `matrix` context the way `run:` does (`shell: ${{ matrix.shell }}`
+  # fails workflow validation outright -- "Unrecognized named-value:
+  # 'matrix'"). Hardcoded shells per job instead, same as every other job
+  # in this file.
+  gh-cli-unix:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            shell: bash
-            cmd: ./setup-gh-cli.sh
-          - os: macos-latest
-            shell: bash
-            cmd: ./setup-gh-cli.sh
-          - os: windows-latest
-            shell: pwsh
-            cmd: .\setup-gh-cli.ps1
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run setup-gh-cli
-        shell: ${{ matrix.shell }}
-        run: ${{ matrix.cmd }}
+      - name: Run setup-gh-cli.sh
+        run: ./setup-gh-cli.sh
 
       - name: Verify gh
-        shell: ${{ matrix.shell }}
+        run: gh --version
+
+  gh-cli-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup-gh-cli.ps1
+        shell: pwsh
+        run: .\setup-gh-cli.ps1
+
+      - name: Verify gh
+        shell: pwsh
         run: gh --version
 
   # setup-gh-cli.sh's apt path adds GitHub's own apt repo with a
