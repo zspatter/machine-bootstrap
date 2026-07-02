@@ -1,13 +1,14 @@
 # machine-bootstrap
 
 Fresh-machine setup scripts. Not project-specific, and not dotfiles — see
-[sym-lattice](../sym-lattice) for that. This repo is purely: get a current
-global Python (via `pyenv`) — and, where it's actually useful, `direnv` —
-installed and wired into the shell on a machine that has neither yet.
+[sym-lattice](../sym-lattice) for that. Each script bootstraps one tool
+(or tightly related set of tools) onto a machine that doesn't have it yet.
 
-Kept as two separate scripts rather than one unified script — the shells,
-package managers, and pyenv variants differ enough between platforms that a
-single script would mostly be branching logic anyway.
+Kept as separate per-tool, per-platform scripts rather than one unified
+script — the shells, package managers, and tool-specific quirks differ
+enough between platforms that a single script would mostly be branching
+logic anyway, and it keeps each concern independently useful (you don't
+need the Python tooling to just want `gh`).
 
 ## Scripts
 
@@ -20,8 +21,14 @@ single script would mostly be branching logic anyway.
   global latest-release Python, installs `direnv` and hooks it into shell
   init files. Supports `--system` (shared) and `--user` (per-account)
   scope — see below.
+- **`setup-gh-cli.ps1`** / **`setup-gh-cli.sh`** — installs the GitHub CLI
+  (`gh`). Install-only, deliberately: `gh auth login` is an interactive
+  OAuth/browser flow (or needs a pre-existing `$GH_TOKEN`) that a bootstrap
+  script has no business trying to automate. No scope concept here (unlike
+  the Python scripts) — `gh` is just a single shared binary, no per-user
+  version proliferation to manage.
 
-Both are safe to re-run.
+All scripts are safe to re-run.
 
 ## `--system` vs `--user` scope (Linux/macOS only)
 
@@ -162,18 +169,20 @@ fresh machine.
   exercising the pacman branch) — the container jobs also create a fresh
   user account after the `--system` run and confirm it inherits
   `pyenv`/Python/`direnv` with no setup, and every `--system`/`system` job
-  asserts a non-privileged account genuinely can't write to the shared root
-  (not just that the happy path works). Windows' equivalent write-lockdown
-  claim is *not* covered — see below. A dedicated `linux-no-git` job
-  proves the script can bootstrap onto a machine with no git at all,
-  fetching the repo via a plain tarball instead of `actions/checkout`
-  (every other Linux job pre-installs git for checkout's own sake, which
-  incidentally masks whether the script provides it itself). Also runs
-  weekly (Monday mornings UTC, `schedule:` trigger) with no code change
-  required to catch drift in things this repo doesn't control — a new
-  Python release, runner image updates, python.org's listing format,
-  winget/brew package changes. GitHub emails on failure for scheduled
-  runs by default.
+  (Linux, macOS, *and* Windows, via a real `New-LocalUser` standard
+  account — see below) asserts a non-privileged account genuinely can't
+  write to the shared root, not just that the happy path works. A
+  dedicated `linux-no-git` job proves the script can bootstrap onto a
+  machine with no git at all, fetching the repo via a plain tarball
+  instead of `actions/checkout` (every other Linux job pre-installs git
+  for checkout's own sake, which incidentally masks whether the script
+  provides it itself). `gh-cli`/`gh-cli-distros` cover `setup-gh-cli`
+  across all three platforms plus the apt-repo-with-GPG-key and pacman
+  install paths specifically. Also runs weekly (Monday mornings UTC,
+  `schedule:` trigger) with no code change required to catch drift in
+  things this repo doesn't control — a new Python release, runner image
+  updates, python.org's listing format, winget/brew package changes.
+  GitHub emails on failure for scheduled runs by default.
 - **`pyenv init -` auto-rehashes on every shell start, which breaks under
   `--system`** — its output always includes an implicit `pyenv rehash`
   unless `--no-rehash` is passed, and once the permission lockdown above
@@ -219,10 +228,13 @@ fresh machine.
      recursion). This is what's in the script now, and it's what's
      actually CI-verified — `-Scope System` completes a full real
      `pyenv install`/`pyenv global` end-to-end.
-  What's still *not* verified: a second, non-admin Windows account
-  genuinely can't write to the shared root. There's no multi-account
-  Windows CI job proving that the way the Linux `ciuser` checks do —
-  verify manually before trusting it on a real shared machine.
+
+  The remaining gap — a second, non-admin account genuinely can't write
+  to the shared root — is now also closed: the `windows` CI job creates a
+  real `New-LocalUser` standard account (lands in `Users`, not
+  `Administrators`, matching the ACE the lockdown actually grants) and
+  runs a write attempt as that account via `Start-Process -Credential`,
+  asserting it fails. Same shape of proof as the Linux `ciuser` checks.
 - **macOS path is otherwise CI-verified** (both scopes pass), but only on
   whatever macOS version `macos-latest` currently is — hasn't been run by
   hand on other macOS versions.

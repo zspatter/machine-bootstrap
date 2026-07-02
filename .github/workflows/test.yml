@@ -46,6 +46,39 @@ jobs:
           & $pyenvBat version
           & $pyenvBat exec python --version
 
+      # The Linux/macOS jobs prove a genuinely separate non-privileged
+      # account can't write to the shared root; Windows never has. Close
+      # that gap with a real local standard-user account, not just an
+      # assumption that the ACL grant worked.
+      - name: Verify a real non-admin account cannot write to the shared root
+        if: matrix.scope == 'System'
+        shell: pwsh
+        run: |
+          $password = ConvertTo-SecureString 'Ci-Test-Passw0rd!23' -AsPlainText -Force
+          New-LocalUser -Name 'ciuser' -Password $password -AccountNeverExpires -PasswordNeverExpires | Out-Null
+          # New-LocalUser lands the account in the "Users" group by default,
+          # not Administrators -- matches the BUILTIN\Users ACE the
+          # lockdown grants Read & Execute to.
+
+          $cred = New-Object System.Management.Automation.PSCredential('ciuser', $password)
+          $testFile = 'C:\ProgramData\pyenv\pyenv-win\shims\.write-test'
+
+          try {
+              $proc = Start-Process -FilePath 'powershell.exe' `
+                  -ArgumentList '-NoProfile', '-Command', "'x' | Out-File -FilePath '$testFile' -ErrorAction Stop" `
+                  -Credential $cred -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop
+          }
+          catch {
+              throw "Could not launch a process as ciuser -- test infrastructure issue, not what this is testing: $($_.Exception.Message)"
+          }
+
+          if (Test-Path $testFile) {
+              Remove-Item $testFile -ErrorAction SilentlyContinue
+              Write-Error "ciuser (exit $($proc.ExitCode)) could write to the shared pyenv root -- permission lockdown failed"
+              exit 1
+          }
+          Write-Host "OK: shared root correctly not writable by a non-admin local account (write attempt exited $($proc.ExitCode))"
+
   macos:
     runs-on: macos-latest
     strategy:
@@ -236,4 +269,60 @@ jobs:
           pyenv version
           python --version
           direnv --version
+
+  gh-cli:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            shell: bash
+            cmd: ./setup-gh-cli.sh
+          - os: macos-latest
+            shell: bash
+            cmd: ./setup-gh-cli.sh
+          - os: windows-latest
+            shell: pwsh
+            cmd: .\setup-gh-cli.ps1
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup-gh-cli
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.cmd }}
+
+      - name: Verify gh
+        shell: ${{ matrix.shell }}
+        run: gh --version
+
+  # setup-gh-cli.sh's apt path adds GitHub's own apt repo with a
+  # GPG-verified keyring (gh isn't in Debian/Ubuntu's default repos) --
+  # worth proving that actually works on a genuinely fresh container
+  # rather than trusting it from GitHub's docs alone. archlinux covers the
+  # pacman path (github-cli is in Arch's official repo, no extra repo/key
+  # setup needed there).
+  gh-cli-distros:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: 'debian:12'
+            prereq: 'apt-get update && apt-get install -y git ca-certificates'
+          - image: 'archlinux:latest'
+            prereq: 'pacman -Syu --noconfirm --needed git ca-certificates'
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Install checkout prerequisites
+        run: ${{ matrix.prereq }}
+
+      - uses: actions/checkout@v4
+
+      - name: Run setup-gh-cli.sh
+        run: ./setup-gh-cli.sh
+
+      - name: Verify gh
+        run: gh --version
           git --version
