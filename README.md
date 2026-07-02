@@ -138,7 +138,11 @@ fresh machine.
   `pyenv`/Python/`direnv` with no setup, and every `--system`/`system` job
   asserts a non-privileged account genuinely can't write to the shared root
   (not just that the happy path works). Windows' equivalent write-lockdown
-  claim is *not* covered — see below.
+  claim is *not* covered — see below. Also runs weekly (Monday mornings
+  UTC, `schedule:` trigger) with no code change required to catch drift
+  in things this repo doesn't control — a new Python release, runner image
+  updates, python.org's listing format, winget/brew package changes.
+  GitHub emails on failure for scheduled runs by default.
 - **`pyenv init -` auto-rehashes on every shell start, which breaks under
   `--system`** — its output always includes an implicit `pyenv rehash`
   unless `--no-rehash` is passed, and once the permission lockdown above

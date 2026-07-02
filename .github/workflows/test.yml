@@ -4,6 +4,14 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    # Weekly drift check, independent of any commit landing here: catches
+    # breakage from things this repo doesn't control -- a new Python
+    # release, ubuntu-latest/macos-latest/archlinux:latest image updates,
+    # python.org changing its listing format, winget/brew package changes,
+    # etc. Monday mornings UTC, off the exact hour per GitHub's own
+    # guidance to avoid scheduling congestion at popular times.
+    - cron: '17 6 * * 1'
 
 jobs:
   windows:
