@@ -64,6 +64,16 @@ else
     PYENV_ROOT_DEFAULT="$HOME/.pyenv"
 fi
 
+# Root-only environments (e.g. minimal containers) often don't have `sudo`
+# installed at all, and it's a no-op when we're already root anyway.
+run_privileged() {
+    if [[ "$(id -u)" -eq 0 ]]; then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
 # Homebrew refuses to run as root. Under --system on macOS we're root, so
 # brew calls must be delegated to the user who invoked sudo.
 run_brew() {
@@ -167,8 +177,8 @@ install_build_deps_linux() {
         ncurses_pkg=libncursesw5-dev
     fi
 
-    sudo apt-get update
-    sudo apt-get install -y \
+    run_privileged apt-get update
+    run_privileged apt-get install -y \
         build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev "$ncurses_pkg" xz-utils tk-dev libxml2-dev \
         libxmlsec1-dev libffi-dev liblzma-dev curl
@@ -254,7 +264,7 @@ ensure_direnv() {
     if command -v direnv >/dev/null 2>&1; then
         log_info "direnv already installed: $(direnv --version)"
     elif [[ "$os" == "linux" ]] && command -v apt-get >/dev/null 2>&1; then
-        sudo apt-get install -y direnv
+        run_privileged apt-get install -y direnv
     elif [[ "$os" == "macos" ]] && command -v brew >/dev/null 2>&1; then
         run_brew install direnv
     else

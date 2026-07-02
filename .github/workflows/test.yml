@@ -1,0 +1,135 @@
+name: Test bootstrap scripts
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: [User, System]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show elevation state
+        shell: pwsh
+        run: |
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = [Security.Principal.WindowsPrincipal]$identity
+          $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          "IsAdmin: $isAdmin"
+
+      - name: Run setup-python-env.ps1 (-Scope ${{ matrix.scope }})
+        shell: pwsh
+        run: .\setup-python-env.ps1 -Scope ${{ matrix.scope }}
+
+      - name: Verify pyenv-win + Python
+        shell: pwsh
+        run: |
+          $pyenvBat = if ('${{ matrix.scope }}' -eq 'System') {
+            'C:\ProgramData\pyenv\pyenv-win\bin\pyenv.bat'
+          } else {
+            "$HOME\.pyenv\pyenv-win\bin\pyenv.bat"
+          }
+          & $pyenvBat version
+          & $pyenvBat exec python --version
+
+  macos:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: [user, system]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup-python-env.sh (--${{ matrix.scope }})
+        run: |
+          if [ "${{ matrix.scope }}" = "system" ]; then
+            sudo ./setup-python-env.sh --system
+          else
+            ./setup-python-env.sh --user
+          fi
+
+      - name: Verify pyenv + Python + direnv
+        run: |
+          if [ "${{ matrix.scope }}" = "system" ]; then
+            export PYENV_ROOT=/opt/pyenv
+          else
+            export PYENV_ROOT="$HOME/.pyenv"
+          fi
+          export PATH="$PYENV_ROOT/bin:$PATH"
+          eval "$(pyenv init -)"
+          pyenv version
+          python --version
+          direnv --version
+
+  linux-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+        scope: [user, system]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup-python-env.sh (--${{ matrix.scope }})
+        run: |
+          if [ "${{ matrix.scope }}" = "system" ]; then
+            sudo ./setup-python-env.sh --system
+          else
+            ./setup-python-env.sh --user
+          fi
+
+      - name: Verify pyenv + Python + direnv
+        run: |
+          if [ "${{ matrix.scope }}" = "system" ]; then
+            export PYENV_ROOT=/opt/pyenv
+          else
+            export PYENV_ROOT="$HOME/.pyenv"
+          fi
+          export PATH="$PYENV_ROOT/bin:$PATH"
+          eval "$(pyenv init -)"
+          pyenv version
+          python --version
+          direnv --version
+
+  # A few apt-based distros beyond Ubuntu, run in containers on top of the
+  # ubuntu-latest host. Always root here, so this exercises --system scope
+  # and, on one image, the actual claim that matters for it: a user account
+  # created *after* the script runs inherits pyenv with no extra setup.
+  linux-distros:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ['debian:12', 'debian:11']
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Install checkout prerequisites
+        run: apt-get update && apt-get install -y git ca-certificates
+
+      - uses: actions/checkout@v4
+
+      - name: Run setup-python-env.sh (already root -> --system)
+        run: ./setup-python-env.sh
+
+      - name: Verify pyenv + Python + direnv
+        run: |
+          export PYENV_ROOT=/opt/pyenv
+          export PATH="$PYENV_ROOT/bin:$PATH"
+          eval "$(pyenv init -)"
+          pyenv version
+          python --version
+          direnv --version
+
+      - name: Verify a new user account inherits it automatically
+        run: |
+          useradd -m -s /bin/bash ciuser
+          su - ciuser -c 'command -v pyenv && pyenv version && python --version && direnv --version'
