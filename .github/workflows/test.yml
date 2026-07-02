@@ -325,4 +325,3 @@ jobs:
 
       - name: Verify gh
         run: gh --version
-          git --version
