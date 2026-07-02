@@ -51,7 +51,16 @@ function Install-GhCli {
 function Show-AuthStatus {
     Write-Step 'Checking auth status'
     gh auth status 2>&1 | Out-Null
-    if ($LASTEXITCODE -eq 0) {
+    $authExitCode = $LASTEXITCODE
+    # A non-zero exit here (not logged in) is an expected, non-fatal
+    # outcome for this script -- capture it before resetting $LASTEXITCODE,
+    # otherwise it silently becomes this script's own process exit code
+    # (PowerShell inherits the last native command's $LASTEXITCODE as the
+    # script's exit code unless something resets it), failing the whole
+    # run even though nothing actually went wrong.
+    $LASTEXITCODE = 0
+
+    if ($authExitCode -eq 0) {
         Write-Info 'Already authenticated.'
     }
     else {
