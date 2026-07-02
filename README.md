@@ -15,10 +15,11 @@ single script would mostly be branching logic anyway.
   and sets a global latest-release Python via `pyenv global`. Supports
   `-Scope System` and `-Scope User` — see below. No `direnv` here — see
   further below.
-- **`setup-python-env.sh`** (Linux/macOS, bash) — installs build deps,
-  clones real `pyenv`, sets a global latest-release Python, installs
-  `direnv` via apt/brew and hooks it into shell init files. Supports
-  `--system` (shared) and `--user` (per-account) scope — see below.
+- **`setup-python-env.sh`** (Linux/macOS, bash) — installs build deps
+  (apt, pacman, or Homebrew — see below), clones real `pyenv`, sets a
+  global latest-release Python, installs `direnv` and hooks it into shell
+  init files. Supports `--system` (shared) and `--user` (per-account)
+  scope — see below.
 
 Both are safe to re-run.
 
@@ -53,6 +54,17 @@ explicitly with `--system` or `--user`.
 
   On macOS, Homebrew refuses to run as root, so under `--system` the script
   delegates `brew` calls to `$SUDO_USER` rather than running them as root.
+
+## Linux package manager support
+
+`install_build_deps_linux` detects `apt-get` or `pacman` and dispatches
+accordingly; anything else prints a message and continues (pyenv install
+will then fail without build tools, same as before this existed). `ensure_direnv`
+follows the same detection. Covers Debian/Ubuntu/Kali (apt) and
+Arch/CachyOS (pacman). pacman installs always use `-Syu`, never a bare
+`-S`/`-Sy` — Arch explicitly treats installing against a freshly-synced
+database on top of stale local packages as an unsupported "partial
+upgrade" that can break the system.
 
 ## `-Scope System` vs `-Scope User` (Windows)
 
@@ -119,12 +131,25 @@ fresh machine.
   every run.
 - **CI** (`.github/workflows/test.yml`) runs both scopes on Windows
   (`-Scope User`/`System`), macOS (`--user`/`--system`), native
-  `ubuntu-22.04`/`ubuntu-24.04`, and `debian:11`/`debian:12` containers —
-  the container jobs also create a fresh user account after the `--system`
-  run and confirm it inherits `pyenv`/Python/`direnv` with no setup, and
-  every `--system`/`system` job asserts a non-privileged account genuinely
-  can't write to the shared root (not just that the happy path works).
-  Windows' equivalent write-lockdown claim is *not* covered — see below.
+  `ubuntu-22.04`/`ubuntu-24.04`, and `debian:11`/`debian:12`/
+  `kalilinux/kali-rolling`/`archlinux:latest` containers (the last one
+  exercising the pacman branch) — the container jobs also create a fresh
+  user account after the `--system` run and confirm it inherits
+  `pyenv`/Python/`direnv` with no setup, and every `--system`/`system` job
+  asserts a non-privileged account genuinely can't write to the shared root
+  (not just that the happy path works). Windows' equivalent write-lockdown
+  claim is *not* covered — see below.
+- **`pyenv init -` auto-rehashes on every shell start, which breaks under
+  `--system`** — its output always includes an implicit `pyenv rehash`
+  unless `--no-rehash` is passed, and once the permission lockdown above
+  actually works, that rehash correctly fails for every non-root account
+  (it needs to write to the shared shims dir). Caught via CI: fixed by
+  passing `--no-rehash` in the shell blocks `ensure_pyenv` writes whenever
+  `SCOPE=system` (not needed under `--user`, where the account owns its
+  own root and the rehash is harmless). Without this, every non-root user
+  would see a `pyenv: cannot rehash: ... isn't writable` message on every
+  new shell under `--system` — cosmetic-but-alarming at best in an
+  interactive shell, a hard failure in anything running under `set -e`.
 - **`chmod -R a+rX` alone was a real bug, not just theoretical** — first
   version of the `--system` permission lockdown used `chmod -R a+rX`
   only. CI caught this for real: on one runner image the ambient umask had

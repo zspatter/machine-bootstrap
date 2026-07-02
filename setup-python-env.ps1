@@ -80,6 +80,32 @@ function Add-EnvPathEntry {
     [Environment]::SetEnvironmentVariable('Path', $newPath, $Scope)
 }
 
+function Read-XmlFileWithRetry {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [int]$MaxAttempts = 5,
+        [int]$DelayMs = 500
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            return [xml](Get-Content $Path -Raw -ErrorAction Stop)
+        }
+        catch {
+            if ($attempt -eq $MaxAttempts) {
+                # A file just written/ACL'd under -Scope System can be
+                # transiently locked (e.g. AV real-time scanning) right
+                # after being touched. Surface the actual ACL state here so
+                # a genuine permission bug is distinguishable from that.
+                Write-Info "Get-Content failed after $MaxAttempts attempts on $Path. Diagnostics:"
+                icacls $Path 2>&1 | ForEach-Object { Write-Info "  $_" }
+                throw
+            }
+            Start-Sleep -Milliseconds $DelayMs
+        }
+    }
+}
+
 function Set-SharedReadExecuteAcl {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -236,7 +262,7 @@ function Repair-PyenvVersionCache {
         return
     }
 
-    [xml]$cache = Get-Content $cachePath
+    $cache = Read-XmlFileWithRetry -Path $cachePath
     $existing = @{}
     foreach ($v in $cache.versions.version) { $existing[$v.code] = $true }
 
@@ -294,7 +320,7 @@ function Get-LatestPythonVersion {
 
     $pyenvRoot = Get-PyenvRoot
     $cachePath = Join-Path $pyenvRoot '.versions_cache.xml'
-    [xml]$cache = Get-Content $cachePath
+    $cache = Read-XmlFileWithRetry -Path $cachePath
 
     $candidates = $cache.versions.version.code | Where-Object {
         if ($IncludeFreeThreaded) { $_ -match '^\d+\.\d+\.\d+t?$' }

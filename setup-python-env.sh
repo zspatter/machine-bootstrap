@@ -172,12 +172,8 @@ harden_system_permissions() {
     chmod -R a+rX,go-w "$PYENV_ROOT_DEFAULT"
 }
 
-install_build_deps_linux() {
+install_build_deps_apt() {
     log_step 'Installing pyenv build dependencies (apt)'
-    if ! command -v apt-get >/dev/null 2>&1; then
-        log_info 'apt-get not found; install pyenv build deps for your distro manually, then re-run.'
-        return
-    fi
 
     local ncurses_pkg=libncurses-dev
     if ! apt-cache show "$ncurses_pkg" >/dev/null 2>&1; then
@@ -190,6 +186,30 @@ install_build_deps_linux() {
         build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev "$ncurses_pkg" xz-utils tk-dev libxml2-dev \
         libxmlsec1-dev libffi-dev liblzma-dev curl
+}
+
+install_build_deps_pacman() {
+    log_step 'Installing pyenv build dependencies (pacman)'
+
+    # Arch (and derivatives like CachyOS) explicitly discourage a bare
+    # `-Sy` sync without an immediate `-u` upgrade -- installing against a
+    # freshly-synced database on top of stale local packages is an
+    # unsupported "partial upgrade" that can break the system. -Syu keeps
+    # sync+upgrade+install atomic.
+    run_privileged pacman -Syu --noconfirm --needed \
+        base-devel openssl zlib bzip2 readline sqlite ncurses xz tk \
+        libxml2 xmlsec libffi curl
+}
+
+install_build_deps_linux() {
+    if command -v apt-get >/dev/null 2>&1; then
+        install_build_deps_apt
+    elif command -v pacman >/dev/null 2>&1; then
+        install_build_deps_pacman
+    else
+        log_step 'Installing pyenv build dependencies'
+        log_info 'No supported package manager found (apt/pacman); install pyenv build deps for your distro manually, then re-run.'
+    fi
 }
 
 install_build_deps_macos() {
@@ -224,13 +244,24 @@ ensure_pyenv() {
     local root_expr='"$HOME/.pyenv"'
     [[ "$SCOPE" == "system" ]] && root_expr="\"$PYENV_ROOT_DEFAULT\""
 
+    # `pyenv init -` always emits an auto-rehash call in its output, run on
+    # every new shell. Under --system, everyday (non-root) accounts can't
+    # write to the shared shims dir by design (see harden_system_permissions)
+    # -- so that auto-rehash would fail on every single shell start for
+    # every account but root. --no-rehash disables it; only the account
+    # that actually ran `pyenv install`/`pyenv global` (root) needs a
+    # rehash, and that already happened during install. Not needed under
+    # --user, since the account owns its own root and rehashing is harmless.
+    local rehash_flag=''
+    [[ "$SCOPE" == "system" ]] && rehash_flag=' --no-rehash'
+
     local bash_block="export PYENV_ROOT=$root_expr
 [[ -d \"\$PYENV_ROOT/bin\" ]] && export PATH=\"\$PYENV_ROOT/bin:\$PATH\"
-eval \"\$(pyenv init - bash)\""
+eval \"\$(pyenv init - bash${rehash_flag})\""
 
     local zsh_block="export PYENV_ROOT=$root_expr
 [[ -d \"\$PYENV_ROOT/bin\" ]] && export PATH=\"\$PYENV_ROOT/bin:\$PATH\"
-eval \"\$(pyenv init - zsh)\""
+eval \"\$(pyenv init - zsh${rehash_flag})\""
 
     write_shell_block 'pyenv (machine-bootstrap)' "$bash_block" "$zsh_block"
 }
@@ -273,6 +304,9 @@ ensure_direnv() {
         log_info "direnv already installed: $(direnv --version)"
     elif [[ "$os" == "linux" ]] && command -v apt-get >/dev/null 2>&1; then
         run_privileged apt-get install -y direnv
+    elif [[ "$os" == "linux" ]] && command -v pacman >/dev/null 2>&1; then
+        # -Syu, not a bare -S: see the comment in install_build_deps_pacman.
+        run_privileged pacman -Syu --noconfirm --needed direnv
     elif [[ "$os" == "macos" ]] && command -v brew >/dev/null 2>&1; then
         run_brew install direnv
     else
