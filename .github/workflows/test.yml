@@ -68,6 +68,19 @@ jobs:
           python --version
           direnv --version
 
+          # This step runs as the normal (non-root) runner user. Under
+          # --system, that's exactly the "everyday account" the lockdown is
+          # meant to stop -- assert it actually can't write here, since a
+          # purely-additive chmod/icacls can silently fail to strip a
+          # pre-existing write bit (caught for real once already).
+          if [ "${{ matrix.scope }}" = "system" ]; then
+            if touch "$PYENV_ROOT/shims/.write-test" 2>/dev/null; then
+              echo "::error::non-root step could write to \$PYENV_ROOT/shims -- permission lockdown failed"
+              exit 1
+            fi
+            echo "OK: shared root correctly not writable by this non-root step"
+          fi
+
   linux-native:
     strategy:
       fail-fast: false
@@ -98,6 +111,17 @@ jobs:
           pyenv version
           python --version
           direnv --version
+
+          # See the matching check in the macos job: assert the non-root
+          # runner user genuinely can't write to the shared root under
+          # --system, rather than assuming a chmod/icacls grant worked.
+          if [ "${{ matrix.scope }}" = "system" ]; then
+            if touch "$PYENV_ROOT/shims/.write-test" 2>/dev/null; then
+              echo "::error::non-root step could write to \$PYENV_ROOT/shims -- permission lockdown failed"
+              exit 1
+            fi
+            echo "OK: shared root correctly not writable by this non-root step"
+          fi
 
   # A few apt-based distros beyond Ubuntu, run in containers on top of the
   # ubuntu-latest host. Always root here, so this exercises --system scope
@@ -133,3 +157,11 @@ jobs:
         run: |
           useradd -m -s /bin/bash ciuser
           su - ciuser -c 'command -v pyenv && pyenv version && python --version && direnv --version'
+
+      - name: Verify that new user cannot write to the shared root
+        run: |
+          if su - ciuser -c 'touch /opt/pyenv/shims/.write-test' 2>/dev/null; then
+            echo "::error::ciuser could write to /opt/pyenv/shims -- permission lockdown failed"
+            exit 1
+          fi
+          echo "OK: shared root correctly not writable by a non-root account"

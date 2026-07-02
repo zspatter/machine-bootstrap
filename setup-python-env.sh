@@ -161,7 +161,15 @@ harden_system_permissions() {
     # Shared root stays root-owned so only root can `pyenv install`/`pyenv
     # global`; a+rX lets every other account read/execute already-installed
     # versions and shims. Everyday users can still `pyenv local` freely.
-    chmod -R a+rX "$PYENV_ROOT_DEFAULT"
+    #
+    # go-w is required, not optional: `a+rX` alone is purely additive and
+    # won't strip a stray group/other write bit left over from whatever
+    # umask created these files during clone/build. Confirmed in CI this
+    # isn't hypothetical -- on one runner image a non-root user could still
+    # write (and pyenv would silently rehash) with only `a+rX` applied,
+    # because the ambient umask had already left the shims dir group- or
+    # other-writable before this ran.
+    chmod -R a+rX,go-w "$PYENV_ROOT_DEFAULT"
 }
 
 install_build_deps_linux() {

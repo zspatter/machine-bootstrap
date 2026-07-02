@@ -83,13 +83,25 @@ function Add-EnvPathEntry {
 function Set-SharedReadExecuteAcl {
     param([Parameter(Mandatory)][string]$Path)
 
-    # Mirrors `chmod -R a+rX` in setup-python-env.sh: the shared root stays
-    # Administrators-owned/writable, so only an elevated session can
-    # `pyenv install` / `pyenv global`. Everyday (non-admin) accounts get
-    # Read & Execute so they can use whatever's already installed. Uses the
-    # well-known SID for BUILTIN\Users so this works regardless of display
-    # language.
-    icacls $Path /grant '*S-1-5-32-545:(OI)(CI)RX' /T /Q | Out-Null
+    # Mirrors `chmod -R a+rX,go-w` in setup-python-env.sh: the shared root
+    # stays Administrators/SYSTEM-writable only, so an unelevated session
+    # can't `pyenv install` / `pyenv global`. Everyday accounts get Read &
+    # Execute so they can use whatever's already installed.
+    #
+    # /inheritance:r + /grant:r (not plain /grant) is deliberate: a plain
+    # /grant is purely additive and would leave any pre-existing, more
+    # permissive inherited ACE (e.g. from C:\ProgramData's own defaults)
+    # in place, silently defeating the lockdown. This was caught for real
+    # on the Unix side in CI with the chmod equivalent -- `a+rX` alone let
+    # a non-admin account still write, because it never strips anything.
+    # Applying the same authoritative-replace fix here on principle, since
+    # there's no equivalent multi-account CI check to prove it empirically
+    # on Windows yet. Uses well-known SIDs so this is locale-independent.
+    icacls $Path /inheritance:r `
+        /grant:r '*S-1-5-18:(OI)(CI)F' `
+        /grant:r '*S-1-5-32-544:(OI)(CI)F' `
+        /grant:r '*S-1-5-32-545:(OI)(CI)RX' `
+        /T /Q | Out-Null
 }
 
 function Get-LatestPythonOrgInstaller {

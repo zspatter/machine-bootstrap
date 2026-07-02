@@ -40,12 +40,16 @@ explicitly with `--system` or `--user`.
   mode for the "one admin account, one everyday account" pattern: run it
   once as the admin account and the everyday account inherits it for free.
 
-  The shared root stays root-owned; the script only `chmod -R a+rX`s it, so
+  The shared root stays root-owned; the script `chmod -R a+rX,go-w`s it, so
   everyday (non-root) accounts can read and execute anything already
   installed — run any installed Python, create venvs, `pyenv local` between
   installed versions — but can't `pyenv install` a new version or
   `pyenv global` a different default. Only root can do that. This falls out
   of the permission model for free; there's no separate group or ACL setup.
+  (The `go-w` isn't decorative — `a+rX` alone is purely additive and won't
+  strip a stray group/other write bit left over from the umask that created
+  the files; CI caught a real case of this on one runner image before
+  `go-w` was added. See Notes below.)
 
   On macOS, Homebrew refuses to run as root, so under `--system` the script
   delegates `brew` calls to `$SUDO_USER` rather than running them as root.
@@ -66,11 +70,15 @@ throws immediately rather than silently falling back.
   `C:\ProgramData\pyenv\pyenv-win`, with `Machine`-scope env vars/PATH.
   Same "one admin account sets it up, everyday account inherits it" idea
   as the Unix side — any account created afterward gets `pyenv` and the
-  global Python without rerunning anything. The shared root's ACL grants
-  `BUILTIN\Users` Read & Execute only (`icacls ... RX`, by well-known SID
-  so it isn't locale-dependent) — everyday accounts can use whatever's
-  installed but can't `pyenv install`/`pyenv global` without an elevated
-  session, mirroring the `chmod -R a+rX` behavior on Linux/macOS.
+  global Python without rerunning anything. The shared root's ACL is
+  reset with `/inheritance:r` and rebuilt with `/grant:r` (SYSTEM and
+  Administrators get Full Control, `BUILTIN\Users` gets Read & Execute
+  only, all by well-known SID so it isn't locale-dependent) — everyday
+  accounts can use whatever's installed but can't `pyenv install`/
+  `pyenv global` without an elevated session, mirroring the
+  `chmod -R a+rX,go-w` behavior on Linux/macOS. Unlike the Unix side this
+  specific claim hasn't been verified against a real second Windows
+  account — see Notes below.
 
   The bootstrap Python (the throwaway copy used only to get a `pip` for
   installing `pyenv-win` itself) stays per-user regardless of `-Scope` —
@@ -109,16 +117,28 @@ fresh machine.
   `setup-python-env.ps1` works around this by fetching the version list
   directly from python.org and merging it into `.versions_cache.xml`,
   every run.
-- **macOS path is untested** — written to pyenv's standard Homebrew +
-  Xcode Command Line Tools flow, but not validated hands-on. Verify before
-  trusting it blindly on a fresh Mac.
-- **`--system`/`-Scope System` are untested end-to-end** — logic was
-  checked (syntax, scope/path resolution, file-targeting) but neither has
-  been run for real against a live Linux, macOS, or elevated Windows
-  session in this session, since the only shell available here was Git
-  Bash on Windows. Dry-run both (or at least verify the shared-root writes
-  and the resulting new-account behavior) before relying on either on a
-  real shared machine.
+- **CI** (`.github/workflows/test.yml`) runs both scopes on Windows
+  (`-Scope User`/`System`), macOS (`--user`/`--system`), native
+  `ubuntu-22.04`/`ubuntu-24.04`, and `debian:11`/`debian:12` containers —
+  the container jobs also create a fresh user account after the `--system`
+  run and confirm it inherits `pyenv`/Python/`direnv` with no setup, and
+  every `--system`/`system` job asserts a non-privileged account genuinely
+  can't write to the shared root (not just that the happy path works).
+  Windows' equivalent write-lockdown claim is *not* covered — see below.
+- **`chmod -R a+rX` alone was a real bug, not just theoretical** — first
+  version of the `--system` permission lockdown used `chmod -R a+rX`
+  only. CI caught this for real: on one runner image the ambient umask had
+  already left the shared root group/other-writable before the chmod ran,
+  and since `a+rX` is purely additive (never strips existing bits), a
+  non-root account could still write and `pyenv rehash` there. Fixed with
+  `chmod -R a+rX,go-w`, verified in CI with an explicit "non-root write
+  must fail" assertion. The Windows ACL code got the equivalent
+  `/inheritance:r` + `/grant:r` (replace, not merge) fix on principle, but
+  there's no multi-account Windows CI job to prove it the same way —
+  verify manually before trusting it on a real shared machine.
+- **macOS path is otherwise CI-verified** (both scopes pass), but only on
+  whatever macOS version `macos-latest` currently is — hasn't been run by
+  hand on other macOS versions.
 - **`/etc/bashrc` on macOS is best-effort** — Apple no longer guarantees a
   default `~/.bash_profile` sources it. If a user's bash setup doesn't
   source `/etc/bashrc`, they won't pick up the system-wide hook in bash;
