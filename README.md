@@ -83,14 +83,17 @@ throws immediately rather than silently falling back.
   Same "one admin account sets it up, everyday account inherits it" idea
   as the Unix side — any account created afterward gets `pyenv` and the
   global Python without rerunning anything. The shared root's ACL is
-  reset with `/inheritance:r` and rebuilt with `/grant:r` (SYSTEM and
-  Administrators get Full Control, `BUILTIN\Users` gets Read & Execute
-  only, all by well-known SID so it isn't locale-dependent) — everyday
-  accounts can use whatever's installed but can't `pyenv install`/
-  `pyenv global` without an elevated session, mirroring the
-  `chmod -R a+rX,go-w` behavior on Linux/macOS. Unlike the Unix side this
-  specific claim hasn't been verified against a real second Windows
-  account — see Notes below.
+  reset via .NET `Get-Acl`/`Set-Acl` (not `icacls.exe` — see Notes below
+  for why): every existing item gets its ACL explicitly rebuilt from
+  scratch (SYSTEM and Administrators get Full Control, `BUILTIN\Users`
+  gets Read & Execute only, all by well-known SID so it isn't
+  locale-dependent), and directory ACEs are inheritable so files/folders
+  `pyenv install` creates *afterward* automatically pick up the same
+  grants — everyday accounts can use whatever's installed but can't
+  `pyenv install`/`pyenv global` without an elevated session, mirroring
+  the `chmod -R a+rX,go-w` behavior on Linux/macOS. The install itself is
+  CI-verified end-to-end under `-Scope System`; the specific "an
+  everyday account really can't write here" claim isn't — see Notes.
 
   The bootstrap Python (the throwaway copy used only to get a `pip` for
   installing `pyenv-win` itself) stays per-user regardless of `-Scope` —
@@ -161,9 +164,36 @@ fresh machine.
   and since `a+rX` is purely additive (never strips existing bits), a
   non-root account could still write and `pyenv rehash` there. Fixed with
   `chmod -R a+rX,go-w`, verified in CI with an explicit "non-root write
-  must fail" assertion. The Windows ACL code got the equivalent
-  `/inheritance:r` + `/grant:r` (replace, not merge) fix on principle, but
-  there's no multi-account Windows CI job to prove it the same way —
+  must fail" assertion.
+- **The Windows ACL code went through several real, CI-caught bugs before
+  landing on `Get-Acl`/`Set-Acl`** — worth recording the sequence, since
+  each one looked plausible until CI proved otherwise:
+  1. A single `icacls /inheritance:r` + multiple `/grant:r` + `/T` call
+     (the direct Unix-lockdown analog) produced a file with a *genuinely
+     empty DACL* — `/T` didn't reliably propagate the grants to every
+     recursed child.
+  2. Splitting that into two separate `icacls` calls hit a persistent
+     "Access is denied" (exit 5) on a freshly `pip`-extracted file.
+     Assumed transient (e.g. AV scanning a just-written file) and wrapped
+     in retry-with-backoff — but it failed identically on all 5 retries
+     within 4 seconds, ruling that out.
+  3. Switched to .NET `Get-Acl`/`Set-Acl`, walking every item explicitly
+     instead of trusting `icacls`'s `/T` recursion or its exit codes. This
+     got further, but used non-inheritable ACEs on the theory that
+     explicitly walking every *existing* item made inheritance
+     unnecessary — wrong for items created *afterward*: `pyenv install`
+     itself then failed ("core_d component MSI ... Permission denied")
+     writing into the now-locked-down tree.
+  4. Final fix: directory ACEs need `(OI)(CI)`-equivalent inheritance
+     flags so new files/folders created later by `pyenv install`
+     automatically inherit the right permissions, while every existing
+     item still gets its ACL explicitly reset directly (not relying on
+     recursion). This is what's in the script now, and it's what's
+     actually CI-verified — `-Scope System` completes a full real
+     `pyenv install`/`pyenv global` end-to-end.
+  What's still *not* verified: a second, non-admin Windows account
+  genuinely can't write to the shared root. There's no multi-account
+  Windows CI job proving that the way the Linux `ciuser` checks do —
   verify manually before trusting it on a real shared machine.
 - **macOS path is otherwise CI-verified** (both scopes pass), but only on
   whatever macOS version `macos-latest` currently is — hasn't been run by
