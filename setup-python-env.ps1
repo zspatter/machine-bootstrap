@@ -106,6 +106,24 @@ function Read-XmlFileWithRetry {
     }
 }
 
+function Invoke-IcaclsWithRetry {
+    param(
+        [Parameter(Mandatory)][string[]]$IcaclsArgs,
+        [int]$MaxAttempts = 5,
+        [int]$DelayMs = 750
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        icacls @IcaclsArgs
+        if ($LASTEXITCODE -eq 0) { return }
+
+        if ($attempt -eq $MaxAttempts) {
+            throw "icacls $($IcaclsArgs -join ' ') failed after $MaxAttempts attempts (exit $LASTEXITCODE)"
+        }
+        Start-Sleep -Milliseconds $DelayMs
+    }
+}
+
 function Set-SharedReadExecuteAcl {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -124,22 +142,24 @@ function Set-SharedReadExecuteAcl {
     # there's no equivalent multi-account CI check to prove it empirically
     # on Windows yet. Uses well-known SIDs so this is locale-independent.
     #
-    # Two separate icacls calls, not one combined /inheritance:r + multiple
-    # /grant:r + /T: combining them in one invocation was tried first and
-    # produced files with a genuinely empty DACL (confirmed via `icacls`
-    # diagnostics in CI -- zero ACEs, not a transient lock) on at least one
-    # recursively-touched child, meaning /T didn't reliably propagate the
-    # grants for that combination. Splitting into "strip inheritance
-    # recursively" then "grant recursively" as two well-established simple
-    # operations avoids relying on that combination working.
-    icacls $Path /inheritance:r /T /Q
-    if ($LASTEXITCODE -ne 0) { throw "icacls /inheritance:r failed on $Path (exit $LASTEXITCODE)" }
+    # Two separate icacls calls rather than one combined /inheritance:r +
+    # multiple /grant:r + /T -- easier to reason about and to retry
+    # independently. Each is wrapped in a retry: this runs immediately
+    # after `pip install` finishes extracting into this same tree, and CI
+    # showed icacls hitting a genuine "Access is denied" (exit 5) on one
+    # freshly-written child file at this exact point -- almost certainly a
+    # transient lock (e.g. AV real-time scanning a just-written file)
+    # rather than a real permission bug, since the calling process is
+    # elevated and owns what it just created.
+    Invoke-IcaclsWithRetry -IcaclsArgs @($Path, '/inheritance:r', '/T', '/Q')
 
-    icacls $Path /grant:r '*S-1-5-18:(OI)(CI)F' `
-        /grant:r '*S-1-5-32-544:(OI)(CI)F' `
-        /grant:r '*S-1-5-32-545:(OI)(CI)RX' `
-        /T /Q
-    if ($LASTEXITCODE -ne 0) { throw "icacls /grant:r failed on $Path (exit $LASTEXITCODE)" }
+    Invoke-IcaclsWithRetry -IcaclsArgs @(
+        $Path,
+        '/grant:r', '*S-1-5-18:(OI)(CI)F',
+        '/grant:r', '*S-1-5-32-544:(OI)(CI)F',
+        '/grant:r', '*S-1-5-32-545:(OI)(CI)RX',
+        '/T', '/Q'
+    )
 }
 
 function Get-LatestPythonOrgInstaller {
