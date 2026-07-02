@@ -123,11 +123,23 @@ function Set-SharedReadExecuteAcl {
     # Applying the same authoritative-replace fix here on principle, since
     # there's no equivalent multi-account CI check to prove it empirically
     # on Windows yet. Uses well-known SIDs so this is locale-independent.
-    icacls $Path /inheritance:r `
-        /grant:r '*S-1-5-18:(OI)(CI)F' `
+    #
+    # Two separate icacls calls, not one combined /inheritance:r + multiple
+    # /grant:r + /T: combining them in one invocation was tried first and
+    # produced files with a genuinely empty DACL (confirmed via `icacls`
+    # diagnostics in CI -- zero ACEs, not a transient lock) on at least one
+    # recursively-touched child, meaning /T didn't reliably propagate the
+    # grants for that combination. Splitting into "strip inheritance
+    # recursively" then "grant recursively" as two well-established simple
+    # operations avoids relying on that combination working.
+    icacls $Path /inheritance:r /T /Q
+    if ($LASTEXITCODE -ne 0) { throw "icacls /inheritance:r failed on $Path (exit $LASTEXITCODE)" }
+
+    icacls $Path /grant:r '*S-1-5-18:(OI)(CI)F' `
         /grant:r '*S-1-5-32-544:(OI)(CI)F' `
         /grant:r '*S-1-5-32-545:(OI)(CI)RX' `
-        /T /Q | Out-Null
+        /T /Q
+    if ($LASTEXITCODE -ne 0) { throw "icacls /grant:r failed on $Path (exit $LASTEXITCODE)" }
 }
 
 function Get-LatestPythonOrgInstaller {
