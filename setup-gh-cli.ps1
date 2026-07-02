@@ -51,16 +51,14 @@ function Install-GhCli {
 function Show-AuthStatus {
     Write-Step 'Checking auth status'
     gh auth status 2>&1 | Out-Null
-    $authExitCode = $LASTEXITCODE
     # A non-zero exit here (not logged in) is an expected, non-fatal
-    # outcome for this script -- capture it before resetting $LASTEXITCODE,
-    # otherwise it silently becomes this script's own process exit code
-    # (PowerShell inherits the last native command's $LASTEXITCODE as the
-    # script's exit code unless something resets it), failing the whole
-    # run even though nothing actually went wrong.
-    $LASTEXITCODE = 0
-
-    if ($authExitCode -eq 0) {
+    # outcome for this script. A prior attempt tried to capture then reset
+    # $LASTEXITCODE here, but that reset didn't actually reach the real
+    # automatic variable -- plain assignment inside a function scope
+    # shadows it locally instead. Left as an explicit `exit 0` at the very
+    # end of the script instead (see main), which sidesteps the ambiguity
+    # entirely regardless of what $LASTEXITCODE ends up holding.
+    if ($LASTEXITCODE -eq 0) {
         Write-Info 'Already authenticated.'
     }
     else {
@@ -77,3 +75,11 @@ if (Get-Command gh -ErrorAction SilentlyContinue) {
 }
 
 Write-Step 'Done'
+
+# Explicit, unconditional: this script only ever throws for a real
+# failure (see Install-GhCli); reaching this point always means success,
+# regardless of what $LASTEXITCODE holds from the last native command
+# (e.g. `gh auth status` legitimately returning non-zero when not logged
+# in). Without this, PowerShell inherits that stale exit code as the
+# script's own process exit code even though nothing actually failed.
+exit 0
