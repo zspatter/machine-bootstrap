@@ -185,7 +185,7 @@ install_build_deps_apt() {
     run_privileged apt-get install -y \
         build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
         libsqlite3-dev "$ncurses_pkg" xz-utils tk-dev libxml2-dev \
-        libxmlsec1-dev libffi-dev liblzma-dev curl
+        libxmlsec1-dev libffi-dev liblzma-dev curl git
 }
 
 install_build_deps_pacman() {
@@ -198,7 +198,7 @@ install_build_deps_pacman() {
     # sync+upgrade+install atomic.
     run_privileged pacman -Syu --noconfirm --needed \
         base-devel openssl zlib bzip2 readline sqlite ncurses xz tk \
-        libxml2 xmlsec libffi curl
+        libxml2 xmlsec libffi curl git
 }
 
 install_build_deps_linux() {
@@ -220,6 +220,8 @@ install_build_deps_macos() {
     fi
 
     if ! xcode-select -p >/dev/null 2>&1; then
+        # Also provides `git`, which ensure_pyenv needs below -- no
+        # separate git install required on macOS.
         log_info 'Xcode Command Line Tools not found; requesting install (may need manual confirmation).'
         xcode-select --install || true
     fi

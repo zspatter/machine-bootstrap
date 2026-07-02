@@ -264,6 +264,35 @@ function Ensure-BootstrapPython {
     }
 }
 
+function Ensure-Git {
+    # Not a dependency of the rest of this script -- pyenv-win installs
+    # via pip, not git. This exists because cloning sym-lattice (or any
+    # repo) in the first place needs git, and it's a near-universal
+    # requirement for a dev machine regardless. Best-effort: unlike
+    # Ensure-BootstrapPython, nothing later in this script actually needs
+    # git, so a missing winget here just logs a note instead of throwing.
+    Write-Step 'Checking for git'
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        Write-Info "Found $(git --version)"
+        return
+    }
+
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Info 'No git on PATH; installing via winget.'
+        winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements
+        Update-SessionPath
+        if (Get-Command git -ErrorAction SilentlyContinue) {
+            Write-Info "Installed $(git --version)"
+        }
+        else {
+            Write-Info 'git installed but not yet on PATH in this session. Open a new shell if you need it immediately.'
+        }
+    }
+    else {
+        Write-Info 'No git on PATH and no winget available; install it manually from https://git-scm.com if you need it.'
+    }
+}
+
 function Get-PyenvRoot {
     if ($script:ResolvedScope -eq 'System') { return Join-Path $script:SystemShareRoot 'pyenv-win' }
     return Join-Path $HOME '.pyenv\pyenv-win'
@@ -429,6 +458,7 @@ if ($script:ResolvedScope -eq 'System') {
 }
 
 Ensure-BootstrapPython
+Ensure-Git
 Ensure-PyenvWin
 Repair-PyenvVersionCache
 Install-GlobalPython -Version $PythonVersion

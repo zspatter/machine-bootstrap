@@ -193,3 +193,47 @@ jobs:
             exit 1
           fi
           echo "OK: shared root correctly not writable by a non-root account"
+
+  # Every other Linux job pre-installs git for actions/checkout, which
+  # incidentally also satisfies ensure_pyenv's own `git clone` -- meaning
+  # none of them actually prove the script can provide git for itself.
+  # This job deliberately does not install git, fetches the repo via a
+  # plain tarball instead, and asserts git is genuinely absent before
+  # running the script, so install_build_deps_apt's own `git` package is
+  # what's actually being tested here.
+  linux-no-git:
+    runs-on: ubuntu-latest
+    container:
+      image: 'debian:12'
+    steps:
+      - name: Install only curl/tar/ca-certificates (no git)
+        run: apt-get update && apt-get install -y curl ca-certificates tar
+
+      - name: Fetch repo without git
+        run: |
+          mkdir repo
+          curl -fsSL "https://github.com/${{ github.repository }}/archive/${{ github.sha }}.tar.gz" \
+            | tar xz -C repo --strip-components=1
+
+      - name: Confirm git is genuinely absent before running the script
+        run: |
+          if command -v git >/dev/null 2>&1; then
+            echo "::error::git already present -- this job no longer tests what it's supposed to"
+            exit 1
+          fi
+          echo "OK: git is not installed, as expected"
+
+      - name: Run setup-python-env.sh (already root -> --system)
+        working-directory: repo
+        run: ./setup-python-env.sh
+
+      - name: Verify pyenv + Python + direnv + git
+        working-directory: repo
+        run: |
+          export PYENV_ROOT=/opt/pyenv
+          export PATH="$PYENV_ROOT/bin:$PATH"
+          eval "$(pyenv init - --no-rehash)"
+          pyenv version
+          python --version
+          direnv --version
+          git --version

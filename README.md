@@ -66,6 +66,29 @@ Arch/CachyOS (pacman). pacman installs always use `-Syu`, never a bare
 database on top of stale local packages as an unsupported "partial
 upgrade" that can break the system.
 
+## git
+
+All three platforms ensure `git` is present:
+
+- **Linux**: `git` is in the apt/pacman package lists in
+  `install_build_deps_apt`/`install_build_deps_pacman`. Not optional --
+  `ensure_pyenv` needs it for `git clone`/`git pull` on real pyenv, so
+  without it the script would fail on a genuinely fresh machine. CI has a
+  dedicated `linux-no-git` job proving this: every other Linux CI job
+  pre-installs git for `actions/checkout` itself, which incidentally also
+  satisfies the script's own need, so none of them actually exercised this
+  path until this job existed (it fetches the repo via a plain tarball
+  instead, and asserts git is genuinely absent before running the script).
+- **macOS**: no separate install needed — Xcode Command Line Tools
+  (already installed by `install_build_deps_macos` if missing) provides
+  `git` too.
+- **Windows**: `Ensure-Git` installs via `winget` if `git` isn't already
+  on PATH. Unlike the bootstrap Python, this is best-effort, not a hard
+  dependency — nothing later in `setup-python-env.ps1` actually needs
+  git (`pyenv-win` installs via `pip`), it's here because cloning
+  `sym-lattice` (or anything else) in the first place needs it, and it's
+  a near-universal requirement for a dev machine regardless.
+
 ## `-Scope System` vs `-Scope User` (Windows)
 
 Same idea as `--system`/`--user` on the Unix side. `setup-python-env.ps1`
@@ -141,11 +164,16 @@ fresh machine.
   `pyenv`/Python/`direnv` with no setup, and every `--system`/`system` job
   asserts a non-privileged account genuinely can't write to the shared root
   (not just that the happy path works). Windows' equivalent write-lockdown
-  claim is *not* covered — see below. Also runs weekly (Monday mornings
-  UTC, `schedule:` trigger) with no code change required to catch drift
-  in things this repo doesn't control — a new Python release, runner image
-  updates, python.org's listing format, winget/brew package changes.
-  GitHub emails on failure for scheduled runs by default.
+  claim is *not* covered — see below. A dedicated `linux-no-git` job
+  proves the script can bootstrap onto a machine with no git at all,
+  fetching the repo via a plain tarball instead of `actions/checkout`
+  (every other Linux job pre-installs git for checkout's own sake, which
+  incidentally masks whether the script provides it itself). Also runs
+  weekly (Monday mornings UTC, `schedule:` trigger) with no code change
+  required to catch drift in things this repo doesn't control — a new
+  Python release, runner image updates, python.org's listing format,
+  winget/brew package changes. GitHub emails on failure for scheduled
+  runs by default.
 - **`pyenv init -` auto-rehashes on every shell start, which breaks under
   `--system`** — its output always includes an implicit `pyenv rehash`
   unless `--no-rehash` is passed, and once the permission lockdown above
