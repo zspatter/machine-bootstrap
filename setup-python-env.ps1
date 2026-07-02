@@ -98,7 +98,12 @@ function Read-XmlFileWithRetry {
                 # after being touched. Surface the actual ACL state here so
                 # a genuine permission bug is distinguishable from that.
                 Write-Info "Get-Content failed after $MaxAttempts attempts on $Path. Diagnostics:"
-                icacls $Path 2>&1 | ForEach-Object { Write-Info "  $_" }
+                try {
+                    (Get-Acl -Path $Path).Access | ForEach-Object {
+                        Write-Info "  $($_.IdentityReference): $($_.FileSystemRights) ($($_.AccessControlType))"
+                    }
+                }
+                catch { Write-Info "  Get-Acl also failed: $($_.Exception.Message)" }
                 throw
             }
             Start-Sleep -Milliseconds $DelayMs
@@ -106,22 +111,21 @@ function Read-XmlFileWithRetry {
     }
 }
 
-function Invoke-IcaclsWithRetry {
-    param(
-        [Parameter(Mandatory)][string[]]$IcaclsArgs,
-        [int]$MaxAttempts = 5,
-        [int]$DelayMs = 750
+function Get-SharedRootAccessRules {
+    # No inheritance flags needed: Set-SharedReadExecuteAcl applies these
+    # same explicit rules directly to every item, rather than relying on
+    # OS-level ACE inheritance propagation.
+    @(
+        [System.Security.AccessControl.FileSystemAccessRule]::new(
+            [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18'), # SYSTEM
+            'FullControl', 'Allow')
+        [System.Security.AccessControl.FileSystemAccessRule]::new(
+            [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'), # Administrators
+            'FullControl', 'Allow')
+        [System.Security.AccessControl.FileSystemAccessRule]::new(
+            [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-545'), # Users
+            'ReadAndExecute', 'Allow')
     )
-
-    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        icacls @IcaclsArgs
-        if ($LASTEXITCODE -eq 0) { return }
-
-        if ($attempt -eq $MaxAttempts) {
-            throw "icacls $($IcaclsArgs -join ' ') failed after $MaxAttempts attempts (exit $LASTEXITCODE)"
-        }
-        Start-Sleep -Milliseconds $DelayMs
-    }
 }
 
 function Set-SharedReadExecuteAcl {
@@ -132,34 +136,38 @@ function Set-SharedReadExecuteAcl {
     # can't `pyenv install` / `pyenv global`. Everyday accounts get Read &
     # Execute so they can use whatever's already installed.
     #
-    # /inheritance:r + /grant:r (not plain /grant) is deliberate: a plain
-    # /grant is purely additive and would leave any pre-existing, more
-    # permissive inherited ACE (e.g. from C:\ProgramData's own defaults)
-    # in place, silently defeating the lockdown. This was caught for real
-    # on the Unix side in CI with the chmod equivalent -- `a+rX` alone let
-    # a non-admin account still write, because it never strips anything.
-    # Applying the same authoritative-replace fix here on principle, since
-    # there's no equivalent multi-account CI check to prove it empirically
-    # on Windows yet. Uses well-known SIDs so this is locale-independent.
-    #
-    # Two separate icacls calls rather than one combined /inheritance:r +
-    # multiple /grant:r + /T -- easier to reason about and to retry
-    # independently. Each is wrapped in a retry: this runs immediately
-    # after `pip install` finishes extracting into this same tree, and CI
-    # showed icacls hitting a genuine "Access is denied" (exit 5) on one
-    # freshly-written child file at this exact point -- almost certainly a
-    # transient lock (e.g. AV real-time scanning a just-written file)
-    # rather than a real permission bug, since the calling process is
-    # elevated and owns what it just created.
-    Invoke-IcaclsWithRetry -IcaclsArgs @($Path, '/inheritance:r', '/T', '/Q')
+    # Uses .NET's Get-Acl/Set-Acl, not icacls.exe. Two icacls-based
+    # attempts were tried first (a single combined /inheritance:r +
+    # multiple /grant:r + /T call, then the same split into two calls with
+    # retry) -- both hit a persistent "Access is denied" (exit 5) on this
+    # runner image, identically on every retry, which rules out a
+    # transient lock. Rather than keep guessing at icacls flag
+    # combinations blind, this explicitly resets and rebuilds the ACL on
+    # every item individually (not relying on /T's recursion or on
+    # inheritance propagating a write), and surfaces the real .NET
+    # exception per item if it still fails.
+    $rules = Get-SharedRootAccessRules
+    $items = @(Get-Item -Path $Path -Force) + @(Get-ChildItem -Path $Path -Recurse -Force)
 
-    Invoke-IcaclsWithRetry -IcaclsArgs @(
-        $Path,
-        '/grant:r', '*S-1-5-18:(OI)(CI)F',
-        '/grant:r', '*S-1-5-32-544:(OI)(CI)F',
-        '/grant:r', '*S-1-5-32-545:(OI)(CI)RX',
-        '/T', '/Q'
-    )
+    $failures = @()
+    foreach ($item in $items) {
+        try {
+            $acl = Get-Acl -Path $item.FullName
+            $acl.SetAccessRuleProtection($true, $false)
+            foreach ($existing in @($acl.Access)) { $acl.RemoveAccessRule($existing) | Out-Null }
+            foreach ($rule in $rules) { $acl.AddAccessRule($rule) }
+            Set-Acl -Path $item.FullName -AclObject $acl
+        }
+        catch {
+            $failures += [pscustomobject]@{ Path = $item.FullName; Error = $_.Exception.Message }
+        }
+    }
+
+    if ($failures.Count -gt 0) {
+        Write-Info "Failed to set ACL on $($failures.Count) of $($items.Count) item(s) under $Path`:"
+        foreach ($f in $failures) { Write-Info "  $($f.Path): $($f.Error)" }
+        throw "Set-Acl failed on $($failures.Count) item(s) under $Path"
+    }
 }
 
 function Get-LatestPythonOrgInstaller {
