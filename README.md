@@ -1,0 +1,126 @@
+# machine-bootstrap
+
+Fresh-machine setup scripts. Not project-specific, and not dotfiles — see
+[sym-lattice](../sym-lattice) for that. This repo is purely: get a current
+global Python (via `pyenv`) — and, where it's actually useful, `direnv` —
+installed and wired into the shell on a machine that has neither yet.
+
+Kept as two separate scripts rather than one unified script — the shells,
+package managers, and pyenv variants differ enough between platforms that a
+single script would mostly be branching logic anyway.
+
+## Scripts
+
+- **`setup-python-env.ps1`** (Windows, PowerShell) — installs `pyenv-win`
+  and sets a global latest-release Python via `pyenv global`. Supports
+  `-Scope System` and `-Scope User` — see below. No `direnv` here — see
+  further below.
+- **`setup-python-env.sh`** (Linux/macOS, bash) — installs build deps,
+  clones real `pyenv`, sets a global latest-release Python, installs
+  `direnv` via apt/brew and hooks it into shell init files. Supports
+  `--system` (shared) and `--user` (per-account) scope — see below.
+
+Both are safe to re-run.
+
+## `--system` vs `--user` scope (Linux/macOS only)
+
+`setup-python-env.sh` auto-detects scope: run as root (`sudo`) it installs
+**system-wide**; run as a normal user it installs **per-user**. Override
+explicitly with `--system` or `--user`.
+
+- **`--user`** (default when not root): everything lives under
+  `$HOME/.pyenv`, wired into that account's own `.bashrc`/`.zshrc`. Matches
+  the original behavior — only the invoking account gets it.
+- **`--system`** (default when root): `pyenv` lives under a shared root
+  (`/opt/pyenv` by default, override via `$SYSTEM_PYENV_ROOT`), wired into
+  system-wide shell init — `/etc/profile.d/*.sh` + `/etc/zsh/zshenv` on
+  Linux, `/etc/zshenv` + `/etc/bashrc` on macOS. Any account created
+  *after* this runs picks up `pyenv`, the global Python, and the `direnv`
+  hook automatically on next login — no per-user setup needed. This is the
+  mode for the "one admin account, one everyday account" pattern: run it
+  once as the admin account and the everyday account inherits it for free.
+
+  The shared root stays root-owned; the script only `chmod -R a+rX`s it, so
+  everyday (non-root) accounts can read and execute anything already
+  installed — run any installed Python, create venvs, `pyenv local` between
+  installed versions — but can't `pyenv install` a new version or
+  `pyenv global` a different default. Only root can do that. This falls out
+  of the permission model for free; there's no separate group or ACL setup.
+
+  On macOS, Homebrew refuses to run as root, so under `--system` the script
+  delegates `brew` calls to `$SUDO_USER` rather than running them as root.
+
+## `-Scope System` vs `-Scope User` (Windows)
+
+Same idea as `--system`/`--user` on the Unix side. `setup-python-env.ps1`
+auto-detects scope from the current session's elevation: run elevated
+("Run as Administrator") it installs **system-wide**; run normally it
+installs **per-user**. Override explicitly with `-Scope System` or
+`-Scope User`. Requesting `-Scope System` from a non-elevated session
+throws immediately rather than silently falling back.
+
+- **`-Scope User`** (default, not elevated): `pyenv-win` lives under
+  `$HOME\.pyenv`, with `User`-scope env vars/PATH. Matches the original
+  behavior.
+- **`-Scope System`** (default, elevated): `pyenv-win` lives under
+  `C:\ProgramData\pyenv\pyenv-win`, with `Machine`-scope env vars/PATH.
+  Same "one admin account sets it up, everyday account inherits it" idea
+  as the Unix side — any account created afterward gets `pyenv` and the
+  global Python without rerunning anything. The shared root's ACL grants
+  `BUILTIN\Users` Read & Execute only (`icacls ... RX`, by well-known SID
+  so it isn't locale-dependent) — everyday accounts can use whatever's
+  installed but can't `pyenv install`/`pyenv global` without an elevated
+  session, mirroring the `chmod -R a+rX` behavior on Linux/macOS.
+
+  The bootstrap Python (the throwaway copy used only to get a `pip` for
+  installing `pyenv-win` itself) stays per-user regardless of `-Scope` —
+  it's discarded after that one `pip install` call, so there's nothing to
+  gain from installing it system-wide.
+
+## Why no direnv on Windows
+
+direnv's automatic per-directory Python venv activation (the `layout pyenv`
+stdlib function) hardcodes a POSIX `bin/` venv layout and evaluates
+`.envrc` via bash internally, regardless of which shell hooks it. Windows
+venvs put the interpreter in `Scripts\`, not `bin/`, so `layout pyenv`
+silently fails to activate anything there — confirmed by reading direnv's
+stdlib source directly. `pyenv-win` already reads `.python-version`
+per-directory on its own (no direnv needed for that part), and venv
+activation on Windows is manual either way, via
+`.venv\Scripts\Activate.ps1` each session. Since direnv can't close that
+gap on native Windows, it isn't installed there. It's still installed and
+hooked on the Linux/macOS side, where `layout pyenv` works correctly.
+
+## Scope boundary
+
+This is not about per-project `.python-version` / `.envrc` — that's handled
+per-repo elsewhere. This is only about getting the tooling itself onto a
+fresh machine.
+
+## Notes / known issues
+
+- **Windows only:** `pyenv-win`'s version list (`pyenv update`, install
+  list) is broken on hardened Windows 11 builds — `pyenv-update.vbs` calls
+  `CreateObject("htmlfile")`, which Windows Script Host blocks as an
+  anti-malware measure. This is a WSH policy block, not a missing COM
+  registration (`regsvr32 mshtml.dll` does not fix it). Upstream fixes
+  ([pyenv-win#724](https://github.com/pyenv-win/pyenv-win/pull/724),
+  [#729](https://github.com/pyenv-win/pyenv-win/pull/729)) aren't merged.
+  `setup-python-env.ps1` works around this by fetching the version list
+  directly from python.org and merging it into `.versions_cache.xml`,
+  every run.
+- **macOS path is untested** — written to pyenv's standard Homebrew +
+  Xcode Command Line Tools flow, but not validated hands-on. Verify before
+  trusting it blindly on a fresh Mac.
+- **`--system`/`-Scope System` are untested end-to-end** — logic was
+  checked (syntax, scope/path resolution, file-targeting) but neither has
+  been run for real against a live Linux, macOS, or elevated Windows
+  session in this session, since the only shell available here was Git
+  Bash on Windows. Dry-run both (or at least verify the shared-root writes
+  and the resulting new-account behavior) before relying on either on a
+  real shared machine.
+- **`/etc/bashrc` on macOS is best-effort** — Apple no longer guarantees a
+  default `~/.bash_profile` sources it. If a user's bash setup doesn't
+  source `/etc/bashrc`, they won't pick up the system-wide hook in bash;
+  zsh (the macOS default since Catalina) is unaffected, since `/etc/zshenv`
+  is always read.
