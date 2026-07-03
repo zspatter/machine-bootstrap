@@ -6,194 +6,84 @@ on:
   workflow_dispatch:
   schedule:
     # Weekly drift check, independent of any commit landing here: catches
-    # breakage from things this repo doesn't control -- a new Python
-    # release, ubuntu-latest/macos-latest/archlinux:latest image updates,
-    # python.org changing its listing format, winget/brew package changes,
-    # etc. Monday mornings UTC, off the exact hour per GitHub's own
-    # guidance to avoid scheduling congestion at popular times.
+    # breakage from things this repo doesn't control -- a new Python or uv
+    # release, runner image updates, astral.sh installer changes,
+    # winget/apt/pacman package changes, etc. Monday mornings UTC, off the
+    # exact hour per GitHub's own guidance to avoid scheduling congestion.
     - cron: '17 6 * * 1'
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  uv-unix:
     strategy:
       fail-fast: false
       matrix:
-        scope: [User, System]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Show elevation state
-        shell: pwsh
-        run: |
-          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-          $principal = [Security.Principal.WindowsPrincipal]$identity
-          $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-          "IsAdmin: $isAdmin"
-
-      - name: Run setup-python-env.ps1 (-Scope ${{ matrix.scope }})
-        shell: pwsh
-        run: .\setup-python-env.ps1 -Scope ${{ matrix.scope }}
-
-      - name: Verify pyenv-win + Python
-        shell: pwsh
-        run: |
-          $pyenvBat = if ('${{ matrix.scope }}' -eq 'System') {
-            'C:\ProgramData\pyenv\pyenv-win\bin\pyenv.bat'
-          } else {
-            "$HOME\.pyenv\pyenv-win\bin\pyenv.bat"
-          }
-          & $pyenvBat version
-          & $pyenvBat exec python --version
-
-      # The Linux/macOS jobs prove a genuinely separate non-privileged
-      # account can't write to the shared root; Windows never has. Close
-      # that gap with a real local standard-user account, not just an
-      # assumption that the ACL grant worked.
-      - name: Verify a real non-admin account cannot write to the shared root
-        if: matrix.scope == 'System'
-        shell: pwsh
-        run: |
-          $password = ConvertTo-SecureString 'Ci-Test-Passw0rd!23' -AsPlainText -Force
-          New-LocalUser -Name 'ciuser' -Password $password -AccountNeverExpires -PasswordNeverExpires | Out-Null
-          # New-LocalUser lands the account in the "Users" group by default,
-          # not Administrators -- matches the BUILTIN\Users ACE the
-          # lockdown grants Read & Execute to.
-
-          $cred = New-Object System.Management.Automation.PSCredential('ciuser', $password)
-          $testFile = 'C:\ProgramData\pyenv\pyenv-win\shims\.write-test'
-
-          try {
-              $proc = Start-Process -FilePath 'powershell.exe' `
-                  -ArgumentList '-NoProfile', '-Command', "'x' | Out-File -FilePath '$testFile' -ErrorAction Stop" `
-                  -Credential $cred -WindowStyle Hidden -Wait -PassThru -ErrorAction Stop
-          }
-          catch {
-              throw "Could not launch a process as ciuser -- test infrastructure issue, not what this is testing: $($_.Exception.Message)"
-          }
-
-          if (Test-Path $testFile) {
-              Remove-Item $testFile -ErrorAction SilentlyContinue
-              Write-Error "ciuser (exit $($proc.ExitCode)) could write to the shared pyenv root -- permission lockdown failed"
-              exit 1
-          }
-          Write-Host "OK: shared root correctly not writable by a non-admin local account (write attempt exited $($proc.ExitCode))"
-
-  macos:
-    runs-on: macos-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        scope: [user, system]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run setup-python-env.sh (--${{ matrix.scope }})
-        run: |
-          if [ "${{ matrix.scope }}" = "system" ]; then
-            sudo ./setup-python-env.sh --system
-          else
-            ./setup-python-env.sh --user
-          fi
-
-      - name: Verify pyenv + Python + direnv
-        run: |
-          if [ "${{ matrix.scope }}" = "system" ]; then
-            export PYENV_ROOT=/opt/pyenv
-          else
-            export PYENV_ROOT="$HOME/.pyenv"
-          fi
-          export PATH="$PYENV_ROOT/bin:$PATH"
-          if [ "${{ matrix.scope }}" = "system" ]; then
-            eval "$(pyenv init - --no-rehash)"
-          else
-            eval "$(pyenv init -)"
-          fi
-          pyenv version
-          python --version
-          direnv --version
-
-          # This step runs as the normal (non-root) runner user. Under
-          # --system, that's exactly the "everyday account" the lockdown is
-          # meant to stop -- assert it actually can't write here, since a
-          # purely-additive chmod/icacls can silently fail to strip a
-          # pre-existing write bit (caught for real once already).
-          if [ "${{ matrix.scope }}" = "system" ]; then
-            if touch "$PYENV_ROOT/shims/.write-test" 2>/dev/null; then
-              echo "::error::non-root step could write to \$PYENV_ROOT/shims -- permission lockdown failed"
-              exit 1
-            fi
-            echo "OK: shared root correctly not writable by this non-root step"
-          fi
-
-  linux-native:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
-        scope: [user, system]
+        os: [ubuntu-22.04, ubuntu-24.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run setup-python-env.sh (--${{ matrix.scope }})
+      - name: Run setup-git.sh
+        run: ./setup-git.sh
+
+      - name: Run setup-uv.sh
+        run: ./setup-uv.sh
+
+      - name: Verify uv + Python + git
         run: |
-          if [ "${{ matrix.scope }}" = "system" ]; then
-            sudo ./setup-python-env.sh --system
-          else
-            ./setup-python-env.sh --user
-          fi
+          export PATH="$HOME/.local/bin:$PATH"
+          uv --version
+          uv python list --only-installed
+          uv run python --version
+          git --version
 
-      - name: Verify pyenv + Python + direnv
+      - name: Re-run setup-uv.sh (idempotency -- "safe to re-run" is a documented claim)
+        run: ./setup-uv.sh
+
+  uv-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup-git.ps1
+        shell: pwsh
+        run: .\setup-git.ps1
+
+      - name: Run setup-uv.ps1
+        shell: pwsh
+        run: .\setup-uv.ps1
+
+      - name: Verify uv + Python + git
+        shell: pwsh
         run: |
-          if [ "${{ matrix.scope }}" = "system" ]; then
-            export PYENV_ROOT=/opt/pyenv
-          else
-            export PYENV_ROOT="$HOME/.pyenv"
-          fi
-          export PATH="$PYENV_ROOT/bin:$PATH"
-          if [ "${{ matrix.scope }}" = "system" ]; then
-            eval "$(pyenv init - --no-rehash)"
-          else
-            eval "$(pyenv init -)"
-          fi
-          pyenv version
-          python --version
-          direnv --version
+          $env:Path = "$HOME\.local\bin;$env:Path"
+          uv --version
+          uv python list --only-installed
+          uv run python --version
+          git --version
 
-          # See the matching check in the macos job: assert the non-root
-          # runner user genuinely can't write to the shared root under
-          # --system, rather than assuming a chmod/icacls grant worked.
-          if [ "${{ matrix.scope }}" = "system" ]; then
-            if touch "$PYENV_ROOT/shims/.write-test" 2>/dev/null; then
-              echo "::error::non-root step could write to \$PYENV_ROOT/shims -- permission lockdown failed"
-              exit 1
-            fi
-            echo "OK: shared root correctly not writable by this non-root step"
-          fi
+      - name: Re-run setup-uv.ps1 (idempotency)
+        shell: pwsh
+        run: .\setup-uv.ps1
 
-  # A few distros beyond Ubuntu, run in containers on top of the
-  # ubuntu-latest host. Always root here, so this exercises --system scope
-  # and, on one image, the actual claim that matters for it: a user account
-  # created *after* the script runs inherits pyenv with no extra setup.
-  # debian/kali are apt-based like the native jobs; archlinux exercises the
-  # pacman branch (stands in for CachyOS, which doesn't have a reliably
-  # maintained official container image -- same package manager and mostly
-  # overlapping package set, so this is representative).
-  linux-distros:
+  # Distros beyond Ubuntu, in containers on the ubuntu-latest host.
+  # debian/kali are apt-based; archlinux stands in for CachyOS (same
+  # package manager, no reliably maintained official CachyOS image). git is
+  # pre-installed here for actions/checkout's own sake -- the uv-no-tools
+  # job below covers the genuinely-bare-machine path.
+  uv-distros:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - image: 'debian:12'
-            prereq: 'apt-get update && apt-get install -y git ca-certificates'
+            prereq: 'apt-get update && apt-get install -y git curl ca-certificates'
           - image: 'debian:11'
-            prereq: 'apt-get update && apt-get install -y git ca-certificates'
+            prereq: 'apt-get update && apt-get install -y git curl ca-certificates'
           - image: 'kalilinux/kali-rolling'
-            prereq: 'apt-get update && apt-get install -y git ca-certificates'
+            prereq: 'apt-get update && apt-get install -y git curl ca-certificates'
           - image: 'archlinux:latest'
-            prereq: 'pacman -Syu --noconfirm --needed git ca-certificates'
+            prereq: 'pacman -Syu --noconfirm --needed git curl ca-certificates'
     container:
       image: ${{ matrix.image }}
     steps:
@@ -202,39 +92,20 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Run setup-python-env.sh (already root -> --system)
-        run: ./setup-python-env.sh
+      - name: Run setup-uv.sh
+        run: ./setup-uv.sh
 
-      - name: Verify pyenv + Python + direnv
+      - name: Verify uv + Python
         run: |
-          export PYENV_ROOT=/opt/pyenv
-          export PATH="$PYENV_ROOT/bin:$PATH"
-          eval "$(pyenv init -)"
-          pyenv version
-          python --version
-          direnv --version
+          export PATH="$HOME/.local/bin:$PATH"
+          uv --version
+          uv run python --version
 
-      - name: Verify a new user account inherits it automatically
-        run: |
-          useradd -m -s /bin/bash ciuser
-          su - ciuser -c 'command -v pyenv && pyenv version && python --version && direnv --version'
-
-      - name: Verify that new user cannot write to the shared root
-        run: |
-          if su - ciuser -c 'touch /opt/pyenv/shims/.write-test' 2>/dev/null; then
-            echo "::error::ciuser could write to /opt/pyenv/shims -- permission lockdown failed"
-            exit 1
-          fi
-          echo "OK: shared root correctly not writable by a non-root account"
-
-  # Every other Linux job pre-installs git for actions/checkout, which
-  # incidentally also satisfies ensure_pyenv's own `git clone` -- meaning
-  # none of them actually prove the script can provide git for itself.
-  # This job deliberately does not install git, fetches the repo via a
-  # plain tarball instead, and asserts git is genuinely absent before
-  # running the script, so install_build_deps_apt's own `git` package is
-  # what's actually being tested here.
-  linux-no-git:
+  # Genuinely bare machine: no git anywhere, repo fetched via plain
+  # tarball. Proves setup-git.sh actually provides git (rather than
+  # actions/checkout's prereq masking it) and that setup-uv.sh needs
+  # nothing beyond curl.
+  uv-no-tools:
     runs-on: ubuntu-latest
     container:
       image: 'debian:12'
@@ -248,7 +119,7 @@ jobs:
           curl -fsSL "https://github.com/${{ github.repository }}/archive/${{ github.sha }}.tar.gz" \
             | tar xz -C repo --strip-components=1
 
-      - name: Confirm git is genuinely absent before running the script
+      - name: Confirm git is genuinely absent before running the scripts
         run: |
           if command -v git >/dev/null 2>&1; then
             echo "::error::git already present -- this job no longer tests what it's supposed to"
@@ -256,25 +127,22 @@ jobs:
           fi
           echo "OK: git is not installed, as expected"
 
-      - name: Run setup-python-env.sh (already root -> --system)
+      - name: Run setup-git.sh
         working-directory: repo
-        run: ./setup-python-env.sh
+        run: ./setup-git.sh
 
-      - name: Verify pyenv + Python + direnv + git
+      - name: Run setup-uv.sh
+        working-directory: repo
+        run: ./setup-uv.sh
+
+      - name: Verify git + uv + Python
         working-directory: repo
         run: |
-          export PYENV_ROOT=/opt/pyenv
-          export PATH="$PYENV_ROOT/bin:$PATH"
-          eval "$(pyenv init - --no-rehash)"
-          pyenv version
-          python --version
-          direnv --version
+          export PATH="$HOME/.local/bin:$PATH"
+          git --version
+          uv --version
+          uv run python --version
 
-  # Two jobs, not one shell-parameterized matrix: `shell:` doesn't support
-  # the `matrix` context the way `run:` does (`shell: ${{ matrix.shell }}`
-  # fails workflow validation outright -- "Unrecognized named-value:
-  # 'matrix'"). Hardcoded shells per job instead, same as every other job
-  # in this file.
   gh-cli-unix:
     strategy:
       fail-fast: false
@@ -305,10 +173,8 @@ jobs:
 
   # setup-gh-cli.sh's apt path adds GitHub's own apt repo with a
   # GPG-verified keyring (gh isn't in Debian/Ubuntu's default repos) --
-  # worth proving that actually works on a genuinely fresh container
-  # rather than trusting it from GitHub's docs alone. archlinux covers the
-  # pacman path (github-cli is in Arch's official repo, no extra repo/key
-  # setup needed there).
+  # proven on a fresh container rather than trusted from GitHub's docs.
+  # archlinux covers the pacman path.
   gh-cli-distros:
     runs-on: ubuntu-latest
     strategy:
