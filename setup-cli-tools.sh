@@ -96,6 +96,27 @@ verify() {
     return "$missing"
 }
 
+all_present() {
+    local cmd
+    for cmd in "${COMMANDS[@]}"; do
+        command -v "$cmd" >/dev/null 2>&1 || return 1
+    done
+}
+
+# Skip the privileged install phase entirely when everything's already
+# here -- a re-run on a provisioned machine shouldn't demand sudo. The
+# alias fix runs first: packages may already be system-installed (e.g. by
+# another account) while *this* user's fd/bat aliases don't exist yet,
+# and creating them needs no privileges.
+export PATH="$HOME/.local/bin:$PATH"
+fix_debian_names
+if all_present; then
+    log_step 'All tools already installed'
+    verify
+    log_step 'Done'
+    exit 0
+fi
+
 install_tools
 fix_debian_names
 verify

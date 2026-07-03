@@ -168,17 +168,39 @@ jobs:
       - name: Run setup-obsidian.sh
         run: ./setup-obsidian.sh
 
+      - name: Run setup-vscode.sh
+        run: ./setup-vscode.sh
+
+      - name: Run setup-zen-browser.sh
+        run: ./setup-zen-browser.sh
+
+      - name: Run setup-librewolf.sh
+        run: ./setup-librewolf.sh
+
+      - name: Run setup-claude-desktop.sh
+        run: ./setup-claude-desktop.sh
+
+      - name: Run setup-claude-code.sh
+        run: ./setup-claude-code.sh
+
       - name: Verify everything
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          for cmd in jq rg fd fzf bat zoxide nvim oh-my-posh; do
+          for cmd in jq rg fd fzf bat zoxide nvim oh-my-posh claude; do
             command -v "$cmd"
             "$cmd" --version 2>&1 | head -n1
           done
+          code --version | head -n1
           if [ "$(uname -s)" = "Darwin" ]; then
             test -d /Applications/Obsidian.app && echo "Obsidian.app present"
+            test -d /Applications/Zen.app && echo "Zen.app present"
+            test -d /Applications/LibreWolf.app && echo "LibreWolf.app present"
+            test -d /Applications/Claude.app && echo "Claude.app present"
           else
             command -v obsidian && echo "obsidian binary present"
+            command -v zen && echo "zen binary present"
+            command -v librewolf && echo "librewolf binary present"
+            command -v claude-desktop && echo "claude-desktop binary present"
           fi
 
   tools-windows:
@@ -202,14 +224,35 @@ jobs:
         shell: pwsh
         run: .\setup-obsidian.ps1
 
+      - name: Run setup-vscode.ps1
+        shell: pwsh
+        run: .\setup-vscode.ps1
+
+      - name: Run setup-zen-browser.ps1
+        shell: pwsh
+        run: .\setup-zen-browser.ps1
+
+      - name: Run setup-librewolf.ps1
+        shell: pwsh
+        run: .\setup-librewolf.ps1
+
+      - name: Run setup-claude-desktop.ps1
+        shell: pwsh
+        run: .\setup-claude-desktop.ps1
+
+      - name: Run setup-claude-code.ps1
+        shell: pwsh
+        run: .\setup-claude-code.ps1
+
       - name: Verify everything
         shell: pwsh
         run: |
           $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
           $user = [Environment]::GetEnvironmentVariable('Path', 'User')
           $env:Path = @($machine, $user) -join ';'
+          $env:Path = "$HOME\.local\bin;$env:Path"
           $failed = @()
-          foreach ($cmd in @('jq', 'rg', 'fd', 'fzf', 'bat', 'zoxide', 'nvim', 'oh-my-posh')) {
+          foreach ($cmd in @('jq', 'rg', 'fd', 'fzf', 'bat', 'zoxide', 'nvim', 'oh-my-posh', 'code', 'claude')) {
             if (Get-Command $cmd -ErrorAction SilentlyContinue) {
               "${cmd}: $((& $cmd --version 2>&1 | Select-Object -First 1))"
             } else {
@@ -217,10 +260,15 @@ jobs:
               $failed += $cmd
             }
           }
-          if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Obsidian\Obsidian.exe")) {
-            winget list --id Obsidian.Obsidian --accept-source-agreements | Out-Null
-            if ($LASTEXITCODE -ne 0) { $failed += 'obsidian' } else { 'obsidian: registered with winget' }
-          } else { 'obsidian: installed' }
+          foreach ($app in @(
+            @{ name = 'obsidian'; id = 'Obsidian.Obsidian' },
+            @{ name = 'zen'; id = 'Zen-Team.Zen-Browser' },
+            @{ name = 'librewolf'; id = 'LibreWolf.LibreWolf' },
+            @{ name = 'claude-desktop'; id = 'Anthropic.Claude' }
+          )) {
+            winget list --id $app.id -e --accept-source-agreements | Out-Null
+            if ($LASTEXITCODE -ne 0) { $failed += $app.name } else { "$($app.name): registered with winget" }
+          }
           if ($failed.Count -gt 0) { throw "missing: $($failed -join ', ')" }
 
   tools-distros:
@@ -253,14 +301,38 @@ jobs:
       - name: Run setup-obsidian.sh
         run: ./setup-obsidian.sh
 
+      - name: Run setup-vscode.sh
+        run: ./setup-vscode.sh
+
+      - name: Run setup-zen-browser.sh
+        run: ./setup-zen-browser.sh
+
+      - name: Run setup-librewolf.sh
+        run: ./setup-librewolf.sh
+
+      - name: Run setup-claude-desktop.sh
+        run: ./setup-claude-desktop.sh
+
+      - name: Run setup-claude-code.sh
+        run: ./setup-claude-code.sh
+
       - name: Verify everything
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          for cmd in jq rg fd fzf bat zoxide nvim oh-my-posh; do
+          for cmd in jq rg fd fzf bat zoxide nvim oh-my-posh claude; do
             command -v "$cmd"
             "$cmd" --version 2>&1 | head -n1
           done
           command -v obsidian && echo "obsidian binary present"
+          command -v code && echo "code binary present"
+          command -v zen && echo "zen binary present"
+          # librewolf: extrepo path on debian only; claude-desktop:
+          # debian-family only -- both self-skip on arch, so only assert
+          # them where they're expected.
+          if command -v apt-get >/dev/null 2>&1; then
+            command -v librewolf && echo "librewolf binary present"
+            command -v claude-desktop && echo "claude-desktop binary present"
+          fi
 
   gh-cli-unix:
     strategy:

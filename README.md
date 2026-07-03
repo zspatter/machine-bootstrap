@@ -48,6 +48,29 @@ per-tool and per-platform so each concern stays independently useful.
   almost never what you want — use the Windows script on the host).
   Vault setup is personal data and deliberately lives in sym-lattice's
   onboarding, not in this public repo.
+- **`setup-vscode.sh`** / **`setup-vscode.ps1`** — VS Code. winget /
+  brew cask / Microsoft's official apt repo. Arch gets `code` (the
+  open-source build in official repos — Microsoft's proprietary build is
+  AUR-only, which these scripts don't manage; marketplace/telemetry
+  differ). WSL-skips: use Windows VS Code + Remote-WSL there.
+- **`setup-zen-browser.sh`** / **`setup-zen-browser.ps1`** — Zen Browser.
+  winget / brew cask; Linux has no repo at all, so the official release
+  tarball goes into `~/.local` nvim-style with a `.desktop` entry
+  (re-run to update — tarball installs don't self-update). WSL-skips.
+- **`setup-librewolf.sh`** / **`setup-librewolf.ps1`** — LibreWolf.
+  winget / brew cask (`--no-quarantine` per their docs) / the officially
+  recommended `extrepo` path on Debian-family. AUR-only on Arch, so the
+  script points at your AUR helper there rather than pretending.
+  WSL-skips.
+- **`setup-claude-desktop.sh`** / **`setup-claude-desktop.ps1`** — the
+  Claude Desktop app. winget / brew cask / Anthropic's official signed
+  apt repo (Linux support is beta, Debian-family only — the script
+  self-skips elsewhere and points at the CLI). WSL-skips.
+- **`setup-claude-code.sh`** / **`setup-claude-code.ps1`** — Claude Code
+  (the CLI) via the official native installer, which auto-updates in the
+  background (the winget/brew/apt alternatives don't by default). Works
+  everywhere including WSL. Install-only: auth is an interactive browser
+  login, same boundary as `setup-gh-cli`.
 
 All scripts are safe to re-run (CI verifies this for the uv pair on every
 run).
