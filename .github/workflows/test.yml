@@ -23,10 +23,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run setup-git.sh
-        run: ./setup-git.sh
+        run: ./shell/setup-git.sh
 
       - name: Run setup-uv.sh
-        run: ./setup-uv.sh
+        run: ./shell/setup-uv.sh
 
       - name: Verify uv + Python + git
         run: |
@@ -37,7 +37,7 @@ jobs:
           git --version
 
       - name: Re-run setup-uv.sh (idempotency -- "safe to re-run" is a documented claim)
-        run: ./setup-uv.sh
+        run: ./shell/setup-uv.sh
 
   uv-windows:
     runs-on: windows-latest
@@ -46,11 +46,11 @@ jobs:
 
       - name: Run setup-git.ps1
         shell: pwsh
-        run: .\setup-git.ps1
+        run: .\powershell\setup-git.ps1
 
       - name: Run setup-uv.ps1
         shell: pwsh
-        run: .\setup-uv.ps1
+        run: .\powershell\setup-uv.ps1
 
       - name: Verify uv + Python + git
         shell: pwsh
@@ -63,7 +63,7 @@ jobs:
 
       - name: Re-run setup-uv.ps1 (idempotency)
         shell: pwsh
-        run: .\setup-uv.ps1
+        run: .\powershell\setup-uv.ps1
 
   # Distros beyond Ubuntu, in containers on the ubuntu-latest host.
   # debian/kali are apt-based; archlinux stands in for CachyOS (same
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run setup-uv.sh
-        run: ./setup-uv.sh
+        run: ./shell/setup-uv.sh
 
       - name: Verify uv + Python
         run: |
@@ -129,11 +129,11 @@ jobs:
 
       - name: Run setup-git.sh
         working-directory: repo
-        run: ./setup-git.sh
+        run: ./shell/setup-git.sh
 
       - name: Run setup-uv.sh
         working-directory: repo
-        run: ./setup-uv.sh
+        run: ./shell/setup-uv.sh
 
       - name: Verify git + uv + Python
         working-directory: repo
@@ -143,10 +143,11 @@ jobs:
           uv --version
           uv run python --version
 
-  # The tool add-ons (cli-tools bundle, nvim, oh-my-posh, obsidian) are
-  # all quick installs -- one consolidated job per platform rather than a
-  # job per tool keeps the matrix sane. Obsidian on the native jobs proves
-  # the install; nobody launches a GUI in CI.
+  # The tool add-ons are all quick installs -- one consolidated job per
+  # platform rather than a job per tool keeps the matrix sane. GUI apps
+  # are installed but never launched (no display in CI). The trailing
+  # install-all step exercises the orchestrator's happy path cheaply:
+  # every underlying script skips as already-installed.
   tools-unix:
     strategy:
       fail-fast: false
@@ -157,31 +158,31 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run setup-cli-tools.sh
-        run: ./setup-cli-tools.sh
+        run: ./shell/setup-cli-tools.sh
 
       - name: Run setup-nvim.sh
-        run: ./setup-nvim.sh
+        run: ./shell/setup-nvim.sh
 
       - name: Run setup-oh-my-posh.sh
-        run: ./setup-oh-my-posh.sh
+        run: ./shell/setup-oh-my-posh.sh
 
       - name: Run setup-obsidian.sh
-        run: ./setup-obsidian.sh
+        run: ./shell/setup-obsidian.sh
 
       - name: Run setup-vscode.sh
-        run: ./setup-vscode.sh
+        run: ./shell/setup-vscode.sh
 
       - name: Run setup-zen-browser.sh
-        run: ./setup-zen-browser.sh
+        run: ./shell/setup-zen-browser.sh
 
       - name: Run setup-librewolf.sh
-        run: ./setup-librewolf.sh
+        run: ./shell/setup-librewolf.sh
 
       - name: Run setup-claude-desktop.sh
-        run: ./setup-claude-desktop.sh
+        run: ./shell/setup-claude-desktop.sh
 
       - name: Run setup-claude-code.sh
-        run: ./setup-claude-code.sh
+        run: ./shell/setup-claude-code.sh
 
       - name: Verify everything
         run: |
@@ -203,6 +204,9 @@ jobs:
             command -v claude-desktop && echo "claude-desktop binary present"
           fi
 
+      - name: Run install-all.sh (orchestrator smoke test -- everything skips)
+        run: ./shell/install-all.sh
+
   tools-windows:
     runs-on: windows-latest
     steps:
@@ -210,39 +214,39 @@ jobs:
 
       - name: Run setup-cli-tools.ps1
         shell: pwsh
-        run: .\setup-cli-tools.ps1
+        run: .\powershell\setup-cli-tools.ps1
 
       - name: Run setup-nvim.ps1
         shell: pwsh
-        run: .\setup-nvim.ps1
+        run: .\powershell\setup-nvim.ps1
 
       - name: Run setup-oh-my-posh.ps1
         shell: pwsh
-        run: .\setup-oh-my-posh.ps1
+        run: .\powershell\setup-oh-my-posh.ps1
 
       - name: Run setup-obsidian.ps1
         shell: pwsh
-        run: .\setup-obsidian.ps1
+        run: .\powershell\setup-obsidian.ps1
 
       - name: Run setup-vscode.ps1
         shell: pwsh
-        run: .\setup-vscode.ps1
+        run: .\powershell\setup-vscode.ps1
 
       - name: Run setup-zen-browser.ps1
         shell: pwsh
-        run: .\setup-zen-browser.ps1
+        run: .\powershell\setup-zen-browser.ps1
 
       - name: Run setup-librewolf.ps1
         shell: pwsh
-        run: .\setup-librewolf.ps1
+        run: .\powershell\setup-librewolf.ps1
 
       - name: Run setup-claude-desktop.ps1
         shell: pwsh
-        run: .\setup-claude-desktop.ps1
+        run: .\powershell\setup-claude-desktop.ps1
 
       - name: Run setup-claude-code.ps1
         shell: pwsh
-        run: .\setup-claude-code.ps1
+        run: .\powershell\setup-claude-code.ps1
 
       - name: Verify everything
         shell: pwsh
@@ -271,6 +275,10 @@ jobs:
           }
           if ($failed.Count -gt 0) { throw "missing: $($failed -join ', ')" }
 
+      - name: Run install-all.ps1 (orchestrator smoke test -- everything skips)
+        shell: pwsh
+        run: .\powershell\install-all.ps1
+
   tools-distros:
     runs-on: ubuntu-latest
     strategy:
@@ -290,31 +298,31 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run setup-cli-tools.sh
-        run: ./setup-cli-tools.sh
+        run: ./shell/setup-cli-tools.sh
 
       - name: Run setup-nvim.sh
-        run: ./setup-nvim.sh
+        run: ./shell/setup-nvim.sh
 
       - name: Run setup-oh-my-posh.sh
-        run: ./setup-oh-my-posh.sh
+        run: ./shell/setup-oh-my-posh.sh
 
       - name: Run setup-obsidian.sh
-        run: ./setup-obsidian.sh
+        run: ./shell/setup-obsidian.sh
 
       - name: Run setup-vscode.sh
-        run: ./setup-vscode.sh
+        run: ./shell/setup-vscode.sh
 
       - name: Run setup-zen-browser.sh
-        run: ./setup-zen-browser.sh
+        run: ./shell/setup-zen-browser.sh
 
       - name: Run setup-librewolf.sh
-        run: ./setup-librewolf.sh
+        run: ./shell/setup-librewolf.sh
 
       - name: Run setup-claude-desktop.sh
-        run: ./setup-claude-desktop.sh
+        run: ./shell/setup-claude-desktop.sh
 
       - name: Run setup-claude-code.sh
-        run: ./setup-claude-code.sh
+        run: ./shell/setup-claude-code.sh
 
       - name: Verify everything
         run: |
@@ -334,6 +342,9 @@ jobs:
             command -v claude-desktop && echo "claude-desktop binary present"
           fi
 
+      - name: Run install-all.sh (orchestrator smoke test -- everything skips)
+        run: ./shell/install-all.sh
+
   gh-cli-unix:
     strategy:
       fail-fast: false
@@ -344,7 +355,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run setup-gh-cli.sh
-        run: ./setup-gh-cli.sh
+        run: ./shell/setup-gh-cli.sh
 
       - name: Verify gh
         run: gh --version
@@ -356,7 +367,7 @@ jobs:
 
       - name: Run setup-gh-cli.ps1
         shell: pwsh
-        run: .\setup-gh-cli.ps1
+        run: .\powershell\setup-gh-cli.ps1
 
       - name: Verify gh
         shell: pwsh
@@ -385,7 +396,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run setup-gh-cli.sh
-        run: ./setup-gh-cli.sh
+        run: ./shell/setup-gh-cli.sh
 
       - name: Verify gh
         run: gh --version

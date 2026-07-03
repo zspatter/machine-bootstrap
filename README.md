@@ -5,8 +5,36 @@ Fresh-machine setup scripts. Not project-specific, and not dotfiles — see
 (or tightly related pair) onto a machine that doesn't have it yet, kept
 per-tool and per-platform so each concern stays independently useful.
 
+## Layout
+
+- **`shell/`** — bash scripts for Linux and macOS
+- **`powershell/`** — PowerShell scripts for Windows
+
+Same tool, same filename stem, one script per platform family. Two
+Windows-only extras have no `shell/` counterpart: `setup-wsl.ps1`
+(WSL is itself Windows-only) and nothing else by design.
+
+## One-command chain
+
+**`shell/install-all.sh`** / **`powershell/install-all.ps1`** run every
+setup script in order (foundations first: git, uv), deliberately **not**
+fail-fast: each script runs independently, failures are recorded, the
+chain continues, and a pass/fail summary prints at the end (non-zero exit
+if anything failed). A broken browser install can't block the Python
+toolchain, and since every script is idempotent, re-running after a fix
+only redoes the broken pieces. `setup-wsl.ps1` is excluded from the chain
+on purpose — it can require elevation and a reboot, which has no business
+mid-way through an unattended run.
+
 ## Scripts
 
+- **`setup-wsl.ps1`** (Windows only, no shell counterpart) — enables WSL
+  and installs a distro, defaulting to the name `Ubuntu`, Canonical's
+  rolling "current LTS" alias (pinning a version number would go stale);
+  `-Distro` overrides. If the WSL feature isn't enabled yet it needs an
+  elevated session and typically a reboot. First-run unix account
+  creation is interactive by design (`--no-launch` + launch it yourself
+  once). Not CI-covered: GitHub's Windows runners can't run WSL.
 - **`setup-uv.sh`** / **`setup-uv.ps1`** — installs [uv](https://docs.astral.sh/uv/)
   via its official standalone installer, then a current default Python
   (`uv python install --default`, so bare `python`/`python3` resolve; the
