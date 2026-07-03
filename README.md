@@ -23,6 +23,31 @@ per-tool and per-platform so each concern stays independently useful.
   script has no business automating. Linux apt path adds GitHub's own repo
   with a GPG-verified keyring per their official docs; Arch has
   `github-cli` in its official repos.
+- **`setup-cli-tools.sh`** / **`setup-cli-tools.ps1`** — a curated bundle
+  of small zero-config tools: jq, ripgrep, fd, fzf, bat, zoxide. One
+  list-driven script rather than a pair per tool, since they all share
+  the same shape; adding one later is a one-line change. On Debian/Ubuntu
+  the script aliases `fdfind`→`fd` and `batcat`→`bat` in `~/.local/bin`
+  (Debian package-name collisions), so dotfiles referencing the real
+  names work identically across distros.
+- **`setup-nvim.sh`** / **`setup-nvim.ps1`** — Neovim. Linux installs the
+  official release tarball into `~/.local` (distro packages, especially
+  Debian stable, are often too old for the modern plugin ecosystem — same
+  prebuilt-binary reasoning as uv); re-running updates to latest. Windows
+  uses winget, which stays current. A foreign nvim already on PATH is
+  left alone. Config is the dotfiles repo's job, not this one's.
+- **`setup-oh-my-posh.sh`** / **`setup-oh-my-posh.ps1`** — oh-my-posh via
+  its official installer (Unix) / winget (Windows). The prompt config in
+  the dotfiles repo depends on this binary existing — without it a fresh
+  machine comes up with a broken prompt. Nerd Font installation is out of
+  scope (`oh-my-posh font install` covers it interactively).
+- **`setup-obsidian.sh`** / **`setup-obsidian.ps1`** — Obsidian, app only.
+  winget on Windows, brew cask on macOS, the official GitHub-release
+  `.deb` on Debian-family (Obsidian has no apt repo), `pacman` on Arch.
+  The Linux script refuses to run under WSL (a Linux GUI app there is
+  almost never what you want — use the Windows script on the host).
+  Vault setup is personal data and deliberately lives in sym-lattice's
+  onboarding, not in this public repo.
 
 All scripts are safe to re-run (CI verifies this for the uv pair on every
 run).

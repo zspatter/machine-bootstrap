@@ -143,6 +143,125 @@ jobs:
           uv --version
           uv run python --version
 
+  # The tool add-ons (cli-tools bundle, nvim, oh-my-posh, obsidian) are
+  # all quick installs -- one consolidated job per platform rather than a
+  # job per tool keeps the matrix sane. Obsidian on the native jobs proves
+  # the install; nobody launches a GUI in CI.
+  tools-unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup-cli-tools.sh
+        run: ./setup-cli-tools.sh
+
+      - name: Run setup-nvim.sh
+        run: ./setup-nvim.sh
+
+      - name: Run setup-oh-my-posh.sh
+        run: ./setup-oh-my-posh.sh
+
+      - name: Run setup-obsidian.sh
+        run: ./setup-obsidian.sh
+
+      - name: Verify everything
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          for cmd in jq rg fd fzf bat zoxide nvim oh-my-posh; do
+            command -v "$cmd"
+            "$cmd" --version 2>&1 | head -n1
+          done
+          if [ "$(uname -s)" = "Darwin" ]; then
+            test -d /Applications/Obsidian.app && echo "Obsidian.app present"
+          else
+            command -v obsidian && echo "obsidian binary present"
+          fi
+
+  tools-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run setup-cli-tools.ps1
+        shell: pwsh
+        run: .\setup-cli-tools.ps1
+
+      - name: Run setup-nvim.ps1
+        shell: pwsh
+        run: .\setup-nvim.ps1
+
+      - name: Run setup-oh-my-posh.ps1
+        shell: pwsh
+        run: .\setup-oh-my-posh.ps1
+
+      - name: Run setup-obsidian.ps1
+        shell: pwsh
+        run: .\setup-obsidian.ps1
+
+      - name: Verify everything
+        shell: pwsh
+        run: |
+          $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          $user = [Environment]::GetEnvironmentVariable('Path', 'User')
+          $env:Path = @($machine, $user) -join ';'
+          $failed = @()
+          foreach ($cmd in @('jq', 'rg', 'fd', 'fzf', 'bat', 'zoxide', 'nvim', 'oh-my-posh')) {
+            if (Get-Command $cmd -ErrorAction SilentlyContinue) {
+              "${cmd}: $((& $cmd --version 2>&1 | Select-Object -First 1))"
+            } else {
+              "${cmd}: MISSING"
+              $failed += $cmd
+            }
+          }
+          if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Obsidian\Obsidian.exe")) {
+            winget list --id Obsidian.Obsidian --accept-source-agreements | Out-Null
+            if ($LASTEXITCODE -ne 0) { $failed += 'obsidian' } else { 'obsidian: registered with winget' }
+          } else { 'obsidian: installed' }
+          if ($failed.Count -gt 0) { throw "missing: $($failed -join ', ')" }
+
+  tools-distros:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: 'debian:12'
+            prereq: 'apt-get update && apt-get install -y git curl ca-certificates tar'
+          - image: 'archlinux:latest'
+            prereq: 'pacman -Syu --noconfirm --needed git curl ca-certificates tar'
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Install checkout prerequisites
+        run: ${{ matrix.prereq }}
+
+      - uses: actions/checkout@v4
+
+      - name: Run setup-cli-tools.sh
+        run: ./setup-cli-tools.sh
+
+      - name: Run setup-nvim.sh
+        run: ./setup-nvim.sh
+
+      - name: Run setup-oh-my-posh.sh
+        run: ./setup-oh-my-posh.sh
+
+      - name: Run setup-obsidian.sh
+        run: ./setup-obsidian.sh
+
+      - name: Verify everything
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          for cmd in jq rg fd fzf bat zoxide nvim oh-my-posh; do
+            command -v "$cmd"
+            "$cmd" --version 2>&1 | head -n1
+          done
+          command -v obsidian && echo "obsidian binary present"
+
   gh-cli-unix:
     strategy:
       fail-fast: false
