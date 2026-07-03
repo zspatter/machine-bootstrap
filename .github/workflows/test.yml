@@ -157,6 +157,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Run setup-uv.sh (foundation -- nvim tooling's ruff install rides uv)
+        run: ./shell/setup-uv.sh
+
       - name: Run setup-cli-tools.sh
         run: ./shell/setup-cli-tools.sh
 
@@ -214,6 +217,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Run setup-uv.ps1 (foundation -- nvim tooling's ruff install rides uv)
+        shell: pwsh
+        run: .\powershell\setup-uv.ps1
 
       - name: Run setup-cli-tools.ps1
         shell: pwsh
@@ -303,6 +310,9 @@ jobs:
         run: ${{ matrix.prereq }}
 
       - uses: actions/checkout@v4
+
+      - name: Run setup-uv.sh (foundation -- nvim tooling's ruff install rides uv)
+        run: ./shell/setup-uv.sh
 
       - name: Run setup-cli-tools.sh
         run: ./shell/setup-cli-tools.sh

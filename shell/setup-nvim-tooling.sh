@@ -158,13 +158,17 @@ fetch_latest_tag() {
 
 install_npm_servers() {
     log_step 'Installing npm-based language servers'
-    # npm i -g installs AND updates. Global prefix under apt/pacman node is
-    # system-owned, hence run_privileged; brew's is user-writable but sudo
-    # no-ops... actually run plain when the prefix is writable.
+    # npm i -g installs AND updates, so this normally re-runs every time.
+    # The exception: when the global prefix is system-owned (apt/pacman
+    # node) and both servers already exist, skip rather than demand sudo --
+    # a re-run on a provisioned machine shouldn't hit a password wall just
+    # to check for updates (same principle as the apt phase above).
     local prefix
     prefix=$(npm config get prefix)
-    if [[ -w "$prefix/lib" || -w "$prefix" ]]; then
+    if [[ -w "$prefix/lib" || -w "$prefix" || "$(id -u)" -eq 0 ]]; then
         npm install -g pyright bash-language-server
+    elif command -v pyright >/dev/null 2>&1 && command -v bash-language-server >/dev/null 2>&1; then
+        log_info 'pyright/bash-language-server already installed; global npm prefix needs privileges -- re-run with sudo (or as root) to update them.'
     else
         run_privileged npm install -g pyright bash-language-server
     fi
