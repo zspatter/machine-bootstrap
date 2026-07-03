@@ -40,8 +40,12 @@ for script in "${SCRIPTS[@]}"; do
 done
 
 printf '\n########## Summary ##########\n'
-for s in "${passed[@]}"; do printf '  PASS  %s\n' "$s"; done
-for s in "${failed[@]}"; do printf '  FAIL  %s\n' "$s"; done
+# ${arr[@]+...} guards: macOS ships bash 3.2, where expanding an *empty*
+# array under `set -u` is an "unbound variable" error (fixed in bash 4.4).
+# Caught in CI -- all 12 scripts passed, then the summary died printing
+# the empty failure list.
+for s in ${passed[@]+"${passed[@]}"}; do printf '  PASS  %s\n' "$s"; done
+for s in ${failed[@]+"${failed[@]}"}; do printf '  FAIL  %s\n' "$s"; done
 
 if [[ ${#failed[@]} -gt 0 ]]; then
     printf '\n%d of %d scripts failed. Fix and re-run -- everything is idempotent, only the broken pieces redo work.\n' "${#failed[@]}" "${#SCRIPTS[@]}"
