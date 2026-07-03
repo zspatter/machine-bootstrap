@@ -27,12 +27,34 @@ fetch() {
     fi
 }
 
+run_privileged() {
+    if [[ "$(id -u)" -eq 0 ]]; then "$@"; else sudo "$@"; fi
+}
+
+ensure_unzip() {
+    # The official installer hard-requires unzip; minimal containers (and
+    # potentially minimal server installs) don't ship it. Caught in CI --
+    # native runners have it preinstalled, containers don't.
+    command -v unzip >/dev/null 2>&1 && return
+    if command -v apt-get >/dev/null 2>&1; then
+        run_privileged apt-get update
+        run_privileged apt-get install -y unzip
+    elif command -v pacman >/dev/null 2>&1; then
+        run_privileged pacman -Syu --noconfirm --needed unzip
+    else
+        log_info 'unzip is required by the oh-my-posh installer; install it, then re-run.'
+        exit 1
+    fi
+}
+
 log_step 'Installing / locating oh-my-posh'
 if command -v oh-my-posh >/dev/null 2>&1; then
     log_info "oh-my-posh already installed: $(oh-my-posh version) at $(command -v oh-my-posh)"
     log_info 'To update: oh-my-posh upgrade'
     exit 0
 fi
+
+ensure_unzip
 
 # Official installer, downloaded to a file first rather than piped
 # straight into bash -- same hygiene as the uv installer.
