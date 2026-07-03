@@ -61,20 +61,41 @@ function Ensure-Uv {
 
 function Install-DefaultPython {
     Write-Step 'Installing latest Python (uv-managed, prebuilt)'
-    # --default also exposes bare python/python3 executables, filling the
-    # old `pyenv global` niche. The flag is still marked experimental
-    # upstream, so fall back to a plain managed install rather than failing
-    # the whole bootstrap if it disappears or changes; uv-managed flows
-    # (uv run, uv venv, uvx) are identical either way.
-    uv python install --default
-    if ($LASTEXITCODE -ne 0) {
-        Write-Info 'Experimental --default flag failed; installing without bare python/python3 shims.'
-        uv python install
-        if ($LASTEXITCODE -ne 0) { throw 'uv python install failed' }
-    }
+    # Runs from $HOME with --no-project, deliberately: uv respects
+    # .python-version pins in the current directory, so running this from
+    # inside a project would install the project's pin as the machine-wide
+    # default instead of latest. Caught on the first real machine run, not
+    # by CI, whose checkouts have no pin to trip on.
+    Push-Location $HOME
+    try {
+        # --default also exposes bare python/python3 executables, filling
+        # the old `pyenv global` niche. The flag is still marked
+        # experimental upstream, so fall back to a plain managed install
+        # rather than failing the whole bootstrap if it disappears or
+        # changes; uv-managed flows (uv run, uv venv, uvx) are identical
+        # either way.
+        uv python install --default
+        if ($LASTEXITCODE -ne 0) {
+            Write-Info 'Experimental --default flag failed; retrying without bare python/python3 shims.'
+            uv python install
+        }
+        if ($LASTEXITCODE -ne 0) {
+            # Known uv-on-Windows quirk: the minor-version-link step can
+            # report "Missing expected target directory" and exit 2 while
+            # the interpreter itself lands fine and is fully usable --
+            # astral-sh/uv#19622 tracks the non-self-healing link logic.
+            # Observed live on a hardened Windows 11 machine even into a
+            # brand-new install dir. Trust a functional check over the
+            # exit code before failing the whole bootstrap.
+            uv run --no-project python --version
+            if ($LASTEXITCODE -ne 0) { throw 'uv python install failed and no functional managed Python found' }
+            Write-Info 'uv python install reported an error, but a managed Python is installed and functional -- continuing (see astral-sh/uv#19622).'
+        }
 
-    Write-Info "uv: $(uv --version)"
-    Write-Info "default python: $(uv run python --version 2>&1)"
+        Write-Info "uv: $(uv --version)"
+        Write-Info "default python: $(uv run --no-project python --version 2>&1)"
+    }
+    finally { Pop-Location }
 }
 
 # --- main ---

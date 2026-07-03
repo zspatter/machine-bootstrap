@@ -63,18 +63,29 @@ activate_uv_path() {
 
 install_default_python() {
     log_step 'Installing latest Python (uv-managed, prebuilt)'
-    # --default also exposes bare python/python3 executables in
-    # ~/.local/bin, filling the old `pyenv global` niche. The flag is still
-    # marked experimental upstream, so fall back to a plain managed install
-    # rather than failing the whole bootstrap if it disappears or changes;
-    # uv-managed flows (uv run, uv venv, uvx) are identical either way.
-    if ! uv python install --default; then
-        log_info 'Experimental --default flag failed; installing without bare python/python3 shims.'
-        uv python install
-    fi
+    # Everything below runs from $HOME with --no-project, deliberately: uv
+    # respects .python-version pins in the current directory, so running
+    # this from inside a project would install the project's pin as the
+    # machine-wide default instead of latest -- and a bare `uv run` there
+    # would sync that whole project (build + dependency download) as a
+    # side effect of a "bootstrap" script. Both caught on the first real
+    # machine run, not by CI, whose checkouts have no pin to trip on.
+    (
+        cd "$HOME"
+        # --default also exposes bare python/python3 executables in
+        # ~/.local/bin, filling the old `pyenv global` niche. The flag is
+        # still marked experimental upstream, so fall back to a plain
+        # managed install rather than failing the whole bootstrap if it
+        # disappears or changes; uv-managed flows (uv run, uv venv, uvx)
+        # are identical either way.
+        if ! uv python install --default; then
+            log_info 'Experimental --default flag failed; installing without bare python/python3 shims.'
+            uv python install
+        fi
 
-    log_info "uv: $(uv --version)"
-    log_info "default python: $(uv run python --version 2>&1)"
+        log_info "uv: $(uv --version)"
+        log_info "default python: $(uv run --no-project python --version 2>&1)"
+    )
 }
 
 main() {
