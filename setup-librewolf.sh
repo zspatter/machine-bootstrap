@@ -68,12 +68,16 @@ main() {
             fi
             ;;
         Darwin)
-            log_step 'Installing LibreWolf (brew cask, --no-quarantine per official docs)'
+            log_step 'Installing LibreWolf (brew cask, no-quarantine per official docs)'
             if ! command -v brew >/dev/null 2>&1; then
                 log_info 'Homebrew not found. Install it from https://brew.sh, then re-run.'
                 exit 1
             fi
-            run_brew install --cask librewolf --no-quarantine
+            # Current Homebrew rejects --no-quarantine as a command flag
+            # ("invalid option", caught in CI); HOMEBREW_CASK_OPTS is the
+            # supported mechanism for cask options now.
+            export HOMEBREW_CASK_OPTS="--no-quarantine"
+            run_brew install --cask librewolf
             ;;
         *)
             log_info "Unsupported OS: $(uname -s). See setup-librewolf.ps1 for Windows."
