@@ -90,6 +90,20 @@ function Install-DefaultPython {
             uv run --no-project python --version
             if ($LASTEXITCODE -ne 0) { throw 'uv python install failed and no functional managed Python found' }
             Write-Info 'uv python install reported an error, but a managed Python is installed and functional -- continuing (see astral-sh/uv#19622).'
+
+            # The aborted install can leave unstamped trampoline shims in
+            # ~\.local\bin (uv writes a placeholder executable, then stamps
+            # the interpreter path into it; the abort lands between those
+            # steps). Confirmed live via the shims' tail bytes containing
+            # only PADDING. Left in place they shadow any real python later
+            # on PATH with a broken one -- remove whichever ones don't run.
+            foreach ($shim in Get-ChildItem "$HOME\.local\bin\python*.exe" -ErrorAction SilentlyContinue) {
+                & $shim.FullName --version 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    Remove-Item $shim.FullName -ErrorAction SilentlyContinue
+                    Write-Info "Removed broken shim left by the aborted install: $($shim.Name)"
+                }
+            }
         }
 
         Write-Info "uv: $(uv --version)"

@@ -88,3 +88,17 @@ and `uv python upgrade`.
   Tools GUI prompt and can't wait on it — confirm the dialog and re-run.
   On CI runners git is preinstalled, so this path is only exercised on
   real fresh Macs.
+- **Windows + [uv#19622](https://github.com/astral-sh/uv/issues/19622)**:
+  on some Windows machines (observed live on a hardened Windows 11 build,
+  even into a brand-new install dir), `uv python install` exits 2 with
+  "Missing expected target directory for Python minor version link" while
+  the interpreter itself lands fine and `uv run` works normally. The
+  abort also leaves *unstamped* trampoline shims in `~\.local\bin` (uv
+  writes a placeholder exe, then stamps the interpreter path into it; the
+  error lands between those steps), which would shadow any real `python`
+  later on PATH with a broken one. `setup-uv.ps1` handles both: it trusts
+  a functional check (`uv run --no-project python --version`) over the
+  exit code, and removes any shim that doesn't run. Net effect on
+  affected machines: uv-managed flows (`uv run`, `uvx`, `uv venv`) are
+  fully functional, but the bare `python`/`python3` shims aren't
+  available until the upstream bug is fixed.
