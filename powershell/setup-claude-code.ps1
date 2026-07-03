@@ -23,6 +23,13 @@ function Update-SessionPath {
     $env:Path = @($machine, $user) -join ';'
 }
 
+# A fresh shell (or a fresh CI step) may predate PATH changes from installs
+# earlier in the same session -- refresh from the registry before the
+# presence checks, or already-installed tools look missing and get
+# reinstalled (winget then exits 0x8A15002B "no applicable upgrade",
+# failing the run). Caught by the install-all re-run smoke test in CI.
+Update-SessionPath
+
 Write-Step 'Installing / locating Claude Code'
 if (Get-Command claude -ErrorAction SilentlyContinue) {
     Write-Info "claude already installed: $((claude --version 2>&1 | Select-Object -First 1)) at $((Get-Command claude).Source)"

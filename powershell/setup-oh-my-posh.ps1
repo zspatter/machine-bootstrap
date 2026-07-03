@@ -23,6 +23,13 @@ function Update-SessionPath {
     $env:Path = @($machine, $user) -join ';'
 }
 
+# A fresh shell (or a fresh CI step) may predate PATH changes from installs
+# earlier in the same session -- refresh from the registry before the
+# presence checks, or already-installed tools look missing and get
+# reinstalled (winget then exits 0x8A15002B "no applicable upgrade",
+# failing the run). Caught by the install-all re-run smoke test in CI.
+Update-SessionPath
+
 Write-Step 'Checking for oh-my-posh'
 if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
     Write-Info "Found oh-my-posh $(oh-my-posh version) at $((Get-Command oh-my-posh).Source)"

@@ -22,6 +22,13 @@ function Update-SessionPath {
     $env:Path = @($machine, $user) -join ';'
 }
 
+# A fresh shell (or a fresh CI step) may predate PATH changes from installs
+# earlier in the same session -- refresh from the registry before the
+# presence checks, or already-installed tools look missing and get
+# reinstalled (winget then exits 0x8A15002B "no applicable upgrade",
+# failing the run). Caught by the install-all re-run smoke test in CI.
+Update-SessionPath
+
 Write-Step 'Checking for git'
 if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Info "Found $(git --version) at $((Get-Command git).Source)"
