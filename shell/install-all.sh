@@ -17,6 +17,7 @@ SCRIPTS=(
     setup-uv.sh
     setup-cli-tools.sh
     setup-nvim.sh
+    setup-nvim-tooling.sh
     setup-oh-my-posh.sh
     setup-gh-cli.sh
     setup-obsidian.sh

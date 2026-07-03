@@ -163,6 +163,9 @@ jobs:
       - name: Run setup-nvim.sh
         run: ./shell/setup-nvim.sh
 
+      - name: Run setup-nvim-tooling.sh
+        run: ./shell/setup-nvim-tooling.sh
+
       - name: Run setup-oh-my-posh.sh
         run: ./shell/setup-oh-my-posh.sh
 
@@ -219,6 +222,10 @@ jobs:
       - name: Run setup-nvim.ps1
         shell: pwsh
         run: .\powershell\setup-nvim.ps1
+
+      - name: Run setup-nvim-tooling.ps1
+        shell: pwsh
+        run: .\powershell\setup-nvim-tooling.ps1
 
       - name: Run setup-oh-my-posh.ps1
         shell: pwsh
@@ -302,6 +309,9 @@ jobs:
 
       - name: Run setup-nvim.sh
         run: ./shell/setup-nvim.sh
+
+      - name: Run setup-nvim-tooling.sh
+        run: ./shell/setup-nvim-tooling.sh
 
       - name: Run setup-oh-my-posh.sh
         run: ./shell/setup-oh-my-posh.sh
