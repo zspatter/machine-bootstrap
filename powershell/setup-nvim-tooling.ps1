@@ -15,7 +15,12 @@
       MSVC Build Tools (VC workload)                  : winget -- the C compiler
         nvim-treesitter parser compiles need; cc discovers it via vswhere, so
         no PATH/vcvars setup is required
-      pyright, bash-language-server                   : npm (Node LTS via winget)
+      pyright, bash-language-server,
+        vscode-langservers-extracted (json),
+        yaml-language-server, @taplo/cli (toml)       : npm (Node LTS via winget)
+      roslyn-language-server (C#)                     : dotnet tool from the Azure
+        DevOps feed (same source VS Code uses; nuget.org lags). Skipped when no
+        .NET SDK is present -- plugins/roslyn.lua gates on the exe either way.
       ruff                                            : uv tool
       PSScriptAnalyzer                                : Install-Module
       PowerShell Editor Services                      : GitHub release bundle,
@@ -111,9 +116,23 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
         throw 'npm still not on PATH after Node install. Open a new shell and re-run.'
     }
 }
-# npm i -g installs AND updates -- this doubles as the update path for both.
-npm install -g pyright bash-language-server
+# npm i -g installs AND updates -- this doubles as the update path for all.
+npm install -g pyright bash-language-server vscode-langservers-extracted yaml-language-server '@taplo/cli'
 if ($LASTEXITCODE -ne 0) { throw "npm install exited with code $LASTEXITCODE" }
+
+# --- Roslyn C# language server (dotnet global tool) ---
+# `dotnet tool update` installs when absent and updates when present, so one
+# command is both paths. The Azure DevOps feed is what VS Code itself pulls
+# from and updates far more often than nuget.org.
+Write-Step 'Installing Roslyn language server (C#)'
+if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+    dotnet tool update -g roslyn-language-server --prerelease `
+        --source https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json
+    if ($LASTEXITCODE -ne 0) { throw "dotnet tool update roslyn-language-server exited with code $LASTEXITCODE" }
+}
+else {
+    Write-Info 'No dotnet SDK on PATH; skipping (install the .NET SDK and re-run for C# LSP).'
+}
 
 # --- ruff (uv-managed, consistent with the Python toolchain) ---
 Write-Step 'Installing ruff'
@@ -161,8 +180,12 @@ else {
 # --- verify everything the nvim config launches ---
 Write-Step 'Verifying'
 $failed = @()
-foreach ($cmd in @('lua-language-server', 'shellcheck', 'shfmt', 'stylua', 'ruff',
-                   'pyright-langserver', 'bash-language-server', 'tree-sitter')) {
+$expected = @('lua-language-server', 'shellcheck', 'shfmt', 'stylua', 'ruff',
+              'pyright-langserver', 'bash-language-server', 'tree-sitter',
+              'vscode-json-language-server', 'yaml-language-server', 'taplo')
+# roslyn only expected where dotnet exists (see install step above)
+if (Get-Command dotnet -ErrorAction SilentlyContinue) { $expected += 'roslyn-language-server' }
+foreach ($cmd in $expected) {
     if (Get-Command $cmd -ErrorAction SilentlyContinue) {
         Write-Info "${cmd}: ok"
     }

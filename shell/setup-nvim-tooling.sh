@@ -13,7 +13,12 @@
 #     malformed shellcheck *directive* and errors the whole file)
 #   lua-language-server, stylua  : pacman/brew have them; apt does NOT ->
 #                                  GitHub release binaries into ~/.local
-#   pyright, bash-language-server: npm -g
+#   pyright, bash-language-server,
+#     vscode-langservers-extracted (json),
+#     yaml-language-server, @taplo/cli (toml): npm -g
+#   roslyn-language-server (C#)  : dotnet tool from the Azure DevOps feed
+#                                  (VS Code's source; nuget.org lags).
+#                                  Skipped when no .NET SDK is present.
 #   ruff                         : uv tool
 #   tree-sitter CLI (>=0.26.1)   : GitHub release binary -> ~/.local/bin
 #                                  (apt's tree-sitter-cli is too old)
@@ -217,15 +222,34 @@ install_npm_servers() {
     # node) and both servers already exist, skip rather than demand sudo --
     # a re-run on a provisioned machine shouldn't hit a password wall just
     # to check for updates (same principle as the apt phase above).
+    local servers=(pyright bash-language-server vscode-langservers-extracted
+                   yaml-language-server '@taplo/cli')
     local prefix
     prefix=$(npm config get prefix)
     if [[ -w "$prefix/lib" || -w "$prefix" || "$(id -u)" -eq 0 ]]; then
-        npm install -g pyright bash-language-server
-    elif command -v pyright >/dev/null 2>&1 && command -v bash-language-server >/dev/null 2>&1; then
-        log_info 'pyright/bash-language-server already installed; global npm prefix needs privileges -- re-run with sudo (or as root) to update them.'
+        npm install -g "${servers[@]}"
+    elif command -v pyright >/dev/null 2>&1 && command -v bash-language-server >/dev/null 2>&1 \
+            && command -v vscode-json-language-server >/dev/null 2>&1 \
+            && command -v yaml-language-server >/dev/null 2>&1 \
+            && command -v taplo >/dev/null 2>&1; then
+        log_info 'npm servers already installed; global npm prefix needs privileges -- re-run with sudo (or as root) to update them.'
     else
-        run_privileged npm install -g pyright bash-language-server
+        run_privileged npm install -g "${servers[@]}"
     fi
+}
+
+install_roslyn() {
+    # dotnet tool update installs when absent and updates when present. The
+    # Azure DevOps feed is what VS Code itself pulls from; nuget.org lags.
+    # plugins/roslyn.lua gates on the resulting exe, so skipping here just
+    # means no C# LSP on this machine -- no errors.
+    log_step 'Installing Roslyn language server (C#)'
+    if ! command -v dotnet >/dev/null 2>&1; then
+        log_info 'No dotnet SDK; skipping (install the .NET SDK and re-run for C# LSP).'
+        return
+    fi
+    dotnet tool update -g roslyn-language-server --prerelease \
+        --source https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json
 }
 
 install_ruff() {
@@ -275,8 +299,12 @@ verify() {
     log_step 'Verifying'
     export PATH="$HOME/.local/bin:$PATH"
     local missing=0
-    for cmd in lua-language-server shellcheck shfmt stylua ruff pyright-langserver \
-              bash-language-server; do
+    local expected=(lua-language-server shellcheck shfmt stylua ruff pyright-langserver
+                    bash-language-server tree-sitter vscode-json-language-server
+                    yaml-language-server taplo)
+    # roslyn only expected where dotnet exists (see install_roslyn)
+    command -v dotnet >/dev/null 2>&1 && expected+=(roslyn-language-server)
+    for cmd in "${expected[@]}"; do
         if command -v "$cmd" >/dev/null 2>&1; then
             log_info "$cmd: ok"
         else
@@ -290,7 +318,9 @@ verify() {
 export PATH="$HOME/.local/bin:$PATH"
 install_packaged_tools
 install_github_binaries
+install_treesitter_toolchain
 install_npm_servers
+install_roslyn
 install_ruff
 install_powershell_tooling
 verify
