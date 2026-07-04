@@ -175,11 +175,20 @@ jobs:
       - name: Run setup-fonts.sh
         run: ./shell/setup-fonts.sh
 
+      - name: Run setup-neovide.sh
+        run: ./shell/setup-neovide.sh
+
+      - name: Run setup-ssh-github.sh
+        run: ./shell/setup-ssh-github.sh
+
       - name: Run setup-obsidian.sh
         run: ./shell/setup-obsidian.sh
 
       - name: Run setup-vscode.sh
         run: ./shell/setup-vscode.sh
+
+      - name: Run setup-zed.sh
+        run: ./shell/setup-zed.sh
 
       - name: Run setup-zen-browser.sh
         run: ./shell/setup-zen-browser.sh
@@ -245,6 +254,14 @@ jobs:
         shell: pwsh
         run: .\powershell\setup-fonts.ps1
 
+      - name: Run setup-neovide.ps1
+        shell: pwsh
+        run: .\powershell\setup-neovide.ps1
+
+      - name: Run setup-ssh-github.ps1
+        shell: pwsh
+        run: .\powershell\setup-ssh-github.ps1
+
       - name: Run setup-obsidian.ps1
         shell: pwsh
         run: .\powershell\setup-obsidian.ps1
@@ -252,6 +269,10 @@ jobs:
       - name: Run setup-vscode.ps1
         shell: pwsh
         run: .\powershell\setup-vscode.ps1
+
+      - name: Run setup-zed.ps1
+        shell: pwsh
+        run: .\powershell\setup-zed.ps1
 
       - name: Run setup-zen-browser.ps1
         shell: pwsh
@@ -336,11 +357,20 @@ jobs:
       - name: Run setup-fonts.sh
         run: ./shell/setup-fonts.sh
 
+      - name: Run setup-neovide.sh
+        run: ./shell/setup-neovide.sh
+
+      - name: Run setup-ssh-github.sh
+        run: ./shell/setup-ssh-github.sh
+
       - name: Run setup-obsidian.sh
         run: ./shell/setup-obsidian.sh
 
       - name: Run setup-vscode.sh
         run: ./shell/setup-vscode.sh
+
+      - name: Run setup-zed.sh
+        run: ./shell/setup-zed.sh
 
       - name: Run setup-zen-browser.sh
         run: ./shell/setup-zen-browser.sh

@@ -85,6 +85,21 @@ mid-way through an unattended run.
   recommendation). Installs a curated 11-face subset rather than the ~186
   size/spacing variants the release zips ship. Skips WSL (fonts render on
   the Windows host).
+- **`setup-neovide.sh`** / **`setup-neovide.ps1`** — Neovide, the GUI
+  frontend for Neovim (embeds whatever nvim is on PATH, so `setup-nvim`
+  is the real prerequisite). winget / brew cask / pacman, AppImage into
+  `~/.local/bin` elsewhere. WSL-skips. GUI-specific settings (font,
+  animations) live in the nvim config gated on `vim.g.neovide`.
+- **`setup-ssh-github.sh`** / **`setup-ssh-github.ps1`** — generates an
+  ed25519 key when absent (passphrase-less, the unattended-bootstrap
+  trade — regenerate with `ssh-keygen -p` if wanted) and registers it
+  with GitHub through an authenticated `gh` (prints the key + URL when
+  gh isn't ready). Runs everywhere **including WSL** — a WSL environment
+  wants its own key. Windows also wires the ssh-agent service, which
+  needs one elevated run.
+- **`setup-zed.sh`** / **`setup-zed.ps1`** — the Zed editor. winget /
+  brew cask / Zed's official installer script on Linux (downloaded to
+  disk first, per house rule). WSL-skips. Zed self-updates in-app.
 - **`setup-obsidian.sh`** / **`setup-obsidian.ps1`** — Obsidian, app only.
   winget on Windows, brew cask on macOS, the official GitHub-release
   `.deb` on Debian-family (Obsidian has no apt repo), `pacman` on Arch.
@@ -118,6 +133,36 @@ mid-way through an unattended run.
 
 All scripts are safe to re-run (CI verifies this for the uv pair on every
 run).
+
+## Updating
+
+**`update-all.sh`** / **`update-all.ps1`** — one-command update sweep
+across every package domain the setup scripts installed: system packages
+(winget / apt / pacman / brew), uv tools, npm globals, the Roslyn dotnet
+tool, PSScriptAnalyzer. Continue-on-error with a summary, like
+install-all. Not part of the install chain — run it when you want
+updates. Editor-owned updates stay in the editor: `vim.pack.update()`
+for nvim plugins (reviewed in its confirm buffer, pinned by the
+committed lockfile) and `:TSUpdate` for treesitter parsers. Exempt a
+winget package from the sweep with `winget pin add <id>`.
+
+## Package-manager posture (Windows)
+
+Deliberate, not accumulated:
+
+- **winget is primary.** Everything in this repo that can ride winget
+  does — it's preinstalled, first-party, and `winget upgrade --all`
+  (via `update-all.ps1`) plus `winget pin` for exceptions is a real
+  update story. Its old reputation for gaps and clumsy updates is
+  mostly pre-2024 vintage.
+- **scoop is the designated gap-filler** — user-scope, no UAC,
+  exportable manifests; philosophically the closest thing Windows has
+  to Homebrew. But it is *not installed until a real gap appears*:
+  when a tool isn't on winget, check scoop first, and only then
+  consider anything else.
+- **chocolatey is retired.** Admin-heavy and its niche predates winget;
+  having it, scoop, *and* winget on one machine is exactly the
+  accumulated-by-convenience state this policy exists to prevent.
 
 ## Why uv (and why the pyenv scripts were retired)
 

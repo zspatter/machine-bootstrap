@@ -20,9 +20,12 @@ SCRIPTS=(
     setup-nvim-tooling.sh
     setup-oh-my-posh.sh
     setup-fonts.sh
+    setup-neovide.sh
     setup-gh-cli.sh
+    setup-ssh-github.sh
     setup-obsidian.sh
     setup-vscode.sh
+    setup-zed.sh
     setup-zen-browser.sh
     setup-librewolf.sh
     setup-claude-desktop.sh
