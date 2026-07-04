@@ -96,8 +96,10 @@ mid-way through an unattended run.
   and per-command, `sudo symlink-deploy dotfiles`, instead of making
   symlinks globally unprivileged), the OpenSSH Client capability
   (ssh/ssh-add/ssh-keygen are *not* installed by default), the
-  ssh-agent service, and NTFS long paths. Run once from an admin shell;
-  everything else in this repo stays user-scope by design.
+  ssh-agent service, and NTFS long paths. Run once:
+  `sudo pwsh -NoProfile -File powershell\setup-windows-elevated.ps1`
+  (plain `sudo <script>.ps1` fails — sudo execs binaries, not scripts).
+  Everything else in this repo stays user-scope by design.
   (`setup-wsl.ps1` stays separate — it can require a reboot.)
 - **`setup-ssh-github.sh`** / **`setup-ssh-github.ps1`** — generates an
   ed25519 key when absent (passphrase-less, the unattended-bootstrap

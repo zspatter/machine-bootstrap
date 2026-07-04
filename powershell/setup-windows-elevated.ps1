@@ -22,6 +22,11 @@
     the WSL feature can require a reboot, which this script must never
     trigger. Everything in the normal install-all chain stays user-scope
     by design -- this script is the single elevation touchpoint.
+
+    Invocation note: `sudo <script>.ps1` fails with "not a valid Win32
+    application" -- sudo execs binaries, not PowerShell scripts. Use:
+        sudo pwsh -NoProfile -File <path-to-this-script>
+    (or run it from an already-elevated shell).
 #>
 
 [CmdletBinding()]

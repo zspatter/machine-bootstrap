@@ -29,7 +29,8 @@ function Write-Info($msg) { Write-Host "    $msg" -ForegroundColor DarkGray }
 
 if (-not (Get-Command ssh-keygen -ErrorAction SilentlyContinue)) {
     Write-Info 'Windows OpenSSH Client is not installed (ssh/ssh-keygen/ssh-add missing).'
-    Write-Info 'Run setup-windows-elevated.ps1 once from an admin shell, then re-run this.'
+    Write-Info 'Run the elevated pass once, then re-run this:'
+    Write-Info "  sudo pwsh -NoProfile -File $PSScriptRoot\setup-windows-elevated.ps1"
     exit 1
 }
 
@@ -59,8 +60,8 @@ if ($svc -and $svc.Status -eq 'Running') {
 }
 else {
     Write-Info 'ssh-agent service is not running -- ssh still works, it just'
-    Write-Info 'reads the key per-connection. setup-windows-elevated.ps1 wires'
-    Write-Info 'the service permanently (one admin-shell run).'
+    Write-Info 'reads the key per-connection. Wire the service permanently with:'
+    Write-Info "  sudo pwsh -NoProfile -File $PSScriptRoot\setup-windows-elevated.ps1"
 }
 
 Write-Step 'GitHub registration'
