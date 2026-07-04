@@ -62,7 +62,8 @@ else {
 }
 
 Write-Step 'Done'
-Write-Info 'Open PowerShell 7 (pwsh) and continue the chain:'
-Write-Info '  sudo pwsh -NoProfile -File powershell\setup-windows-elevated.ps1'
-Write-Info '  powershell\install-all.ps1'
+Write-Info 'Open an ELEVATED PowerShell 7 and run the admin pass -- it enables'
+Write-Info 'sudo, so this is the last elevated shell the bootstrap ever needs:'
+Write-Info '  pwsh -NoProfile -File powershell\setup-windows-elevated.ps1'
+Write-Info 'Then from a normal pwsh: powershell\install-all.ps1'
 exit 0
