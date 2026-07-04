@@ -190,7 +190,10 @@ install_treesitter_toolchain() {
 
     local required='0.26.1' current=''
     if command -v tree-sitter >/dev/null 2>&1; then
-        current=$(tree-sitter --version | awk '{print $2}')
+        # 2>/dev/null + || true: a previously-installed binary that can't
+        # even exec (glibc mismatch) must read as "not installed", not
+        # kill the script under set -e.
+        current=$(tree-sitter --version 2>/dev/null | awk '{print $2}' || true)
     fi
     if [[ -n "$current" && "$(printf '%s\n' "$required" "$current" | sort -V | head -1)" == "$required" ]]; then
         log_info "tree-sitter CLI $current already installed (>= $required)"
@@ -209,10 +212,27 @@ install_treesitter_toolchain() {
     fetch "https://github.com/tree-sitter/tree-sitter/releases/latest/download/tree-sitter-$os-$arch.gz" \
          "$tmpdir/tree-sitter.gz"
     gunzip "$tmpdir/tree-sitter.gz"
-    mkdir -p "$HOME/.local/bin"
-    install -m 0755 "$tmpdir/tree-sitter" "$HOME/.local/bin/tree-sitter"
+    chmod +x "$tmpdir/tree-sitter"
+
+    # The release binaries link against a recent glibc (2.39+ as of 0.26,
+    # no musl builds published) -- exec-test before installing. Older
+    # distros (debian 12: glibc 2.36, caught by CI) fall back to npm,
+    # whose tree-sitter-cli tracks upstream releases (0.26.10 at the time
+    # of writing) despite the nvim-treesitter README's stale "not npm"
+    # advice.
+    if "$tmpdir/tree-sitter" --version >/dev/null 2>&1; then
+        mkdir -p "$HOME/.local/bin"
+        install -m 0755 "$tmpdir/tree-sitter" "$HOME/.local/bin/tree-sitter"
+        rm -rf "$tmpdir"
+        log_info "Installed tree-sitter CLI $("$HOME/.local/bin/tree-sitter" --version | awk '{print $2}')"
+        return
+    fi
     rm -rf "$tmpdir"
-    log_info "Installed tree-sitter CLI $("$HOME/.local/bin/tree-sitter" --version | awk '{print $2}')"
+    log_info 'Release binary needs a newer glibc than this distro has; falling back to npm.'
+    # Clear any broken binary so it can't shadow the npm one on PATH.
+    rm -f "$HOME/.local/bin/tree-sitter"
+    npm install -g tree-sitter-cli || run_privileged npm install -g tree-sitter-cli
+    log_info "Installed tree-sitter CLI via npm ($(tree-sitter --version 2>/dev/null | awk '{print $2}' || echo 'version check needs a new shell'))"
 }
 
 install_npm_servers() {
