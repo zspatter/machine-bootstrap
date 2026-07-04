@@ -258,6 +258,10 @@ jobs:
         shell: pwsh
         run: .\powershell\setup-neovide.ps1
 
+      - name: Run setup-windows-elevated.ps1 (runner shells are admin)
+        shell: pwsh
+        run: .\powershell\setup-windows-elevated.ps1
+
       - name: Run setup-ssh-github.ps1
         shell: pwsh
         run: .\powershell\setup-ssh-github.ps1

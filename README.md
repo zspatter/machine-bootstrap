@@ -90,13 +90,21 @@ mid-way through an unattended run.
   is the real prerequisite). winget / brew cask / pacman, AppImage into
   `~/.local/bin` elsewhere. WSL-skips. GUI-specific settings (font,
   animations) live in the nvim config gated on `vim.g.neovide`.
+- **`setup-windows-elevated.ps1`** (Windows only, NOT in the chain) —
+  the single elevated touchpoint: Developer Mode (symlink-deploy without
+  admin shells), the OpenSSH Client capability (ssh/ssh-add/ssh-keygen
+  are *not* installed by default), the ssh-agent service, and NTFS long
+  paths. Run once from an admin shell; everything else in this repo
+  stays user-scope by design. (`setup-wsl.ps1` stays separate — it can
+  require a reboot.)
 - **`setup-ssh-github.sh`** / **`setup-ssh-github.ps1`** — generates an
   ed25519 key when absent (passphrase-less, the unattended-bootstrap
-  trade — regenerate with `ssh-keygen -p` if wanted) and registers it
-  with GitHub through an authenticated `gh` (prints the key + URL when
-  gh isn't ready). Runs everywhere **including WSL** — a WSL environment
-  wants its own key. Windows also wires the ssh-agent service, which
-  needs one elevated run.
+  trade — regenerate with `ssh-keygen -p` if wanted), loads it into the
+  agent, and registers it with GitHub through an authenticated `gh`
+  (prints the key + URL when gh isn't ready). Runs everywhere
+  **including WSL** — a WSL environment wants its own key. On Windows it
+  depends on the OpenSSH capability from `setup-windows-elevated.ps1`
+  but never needs elevation itself.
 - **`setup-zed.sh`** / **`setup-zed.ps1`** — the Zed editor. winget /
   brew cask / Zed's official installer script on Linux (downloaded to
   disk first, per house rule). WSL-skips. Zed self-updates in-app.

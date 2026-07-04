@@ -13,9 +13,10 @@
     if this machine's threat model wants it; the agent wiring below makes
     a passphrase cheap to live with.
 
-    Enabling the ssh-agent service needs elevation once; without it the
-    key still works (ssh prompts per-use), so this script degrades
-    rather than failing.
+    Prerequisite: the Windows OpenSSH Client capability (ssh, ssh-add,
+    ssh-keygen -- NOT installed by default) and the ssh-agent service,
+    both of which setup-windows-elevated.ps1 handles in the single
+    elevated pass. This script itself never needs elevation.
 #>
 
 [CmdletBinding()]
@@ -25,6 +26,12 @@ $ErrorActionPreference = 'Stop'
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-Info($msg) { Write-Host "    $msg" -ForegroundColor DarkGray }
+
+if (-not (Get-Command ssh-keygen -ErrorAction SilentlyContinue)) {
+    Write-Info 'Windows OpenSSH Client is not installed (ssh/ssh-keygen/ssh-add missing).'
+    Write-Info 'Run setup-windows-elevated.ps1 once from an admin shell, then re-run this.'
+    exit 1
+}
 
 $KeyPath = Join-Path $HOME '.ssh\id_ed25519'
 $PubPath = "$KeyPath.pub"
@@ -40,28 +47,16 @@ else {
     Write-Info "Generated $KeyPath (no passphrase -- see script notes)."
 }
 
-Write-Step 'ssh-agent service'
+Write-Step 'ssh-agent'
 $svc = Get-Service ssh-agent -ErrorAction SilentlyContinue
-if (-not $svc) {
-    Write-Info 'No ssh-agent service (OpenSSH client feature missing?); skipping agent wiring.'
-}
-elseif ($svc.Status -eq 'Running') {
-    Write-Info 'ssh-agent already running.'
+if ($svc -and $svc.Status -eq 'Running') {
     ssh-add $KeyPath 2>$null | Out-Null
+    Write-Info 'Key loaded into the running agent.'
 }
 else {
-    $elevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-        ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    if ($elevated) {
-        Set-Service ssh-agent -StartupType Automatic
-        Start-Service ssh-agent
-        ssh-add $KeyPath 2>$null | Out-Null
-        Write-Info 'ssh-agent enabled (automatic startup) and key added.'
-    }
-    else {
-        Write-Info 'ssh-agent service is disabled and this shell is not elevated.'
-        Write-Info 'Run once elevated: Set-Service ssh-agent -StartupType Automatic; Start-Service ssh-agent'
-    }
+    Write-Info 'ssh-agent service is not running -- ssh still works, it just'
+    Write-Info 'reads the key per-connection. setup-windows-elevated.ps1 wires'
+    Write-Info 'the service permanently (one admin-shell run).'
 }
 
 Write-Step 'GitHub registration'
