@@ -64,17 +64,23 @@ mid-way through an unattended run.
   prebuilt-binary reasoning as uv); re-running updates to latest. Windows
   uses winget, which stays current. A foreign nvim already on PATH is
   left alone. Config is the dotfiles repo's job, not this one's.
-- **`setup-nvim-tooling.sh`** / **`setup-nvim-tooling.ps1`** — the LSP
-  servers, linters, and formatters the Neovim config (sym-lattice
-  `dotfiles/vim/nvim`) expects: lua-language-server, pyright,
-  bash-language-server, shellcheck, shfmt, stylua, ruff, and — where pwsh
-  exists — PSScriptAnalyzer plus the PowerShell Editor Services bundle,
-  installed to a fixed per-OS path the config's `powershell_es` setup
-  relies on (`~/AppData/Local/powershell-editor-services` on Windows,
-  `~/.local/share/powershell-editor-services` elsewhere). The config
-  deliberately uses no mason.nvim, so this script is where server
-  maintenance lives. apt lacks lua-language-server/stylua → GitHub
-  release binaries into `~/.local`; pacman and brew package everything.
+- **`setup-nvim-tooling.sh`** / **`setup-nvim-tooling.ps1`** — everything
+  the Neovim config (sym-lattice `dotfiles/vim/nvim`) launches. LSP
+  servers: lua-language-server, pyright, bash-language-server, the
+  json/yaml servers (vscode-langservers-extracted, yaml-language-server),
+  taplo (toml), roslyn-language-server (C#, a dotnet global tool from the
+  Azure DevOps feed — needs .NET SDK ≥ 10, installed when absent), and —
+  where pwsh exists — PSScriptAnalyzer plus the PowerShell Editor
+  Services bundle at a fixed per-OS path the config's `powershell_es`
+  setup relies on. Linters/formatters: shellcheck, shfmt, stylua, ruff.
+  Treesitter parser toolchain: the tree-sitter CLI (≥ 0.26.1; winget on
+  Windows, GitHub release binary elsewhere with an npm fallback for
+  old-glibc distros) and a C compiler (MSVC Build Tools via vswhere check
+  on Windows, gcc via apt/pacman elsewhere) — nvim 0.12 bundles only
+  seven parsers and compiles the rest locally. The config deliberately
+  uses no mason.nvim, so this script is where all of it is maintained.
+  apt lacks lua-language-server/stylua → GitHub release binaries into
+  `~/.local`; pacman and brew package everything.
 - **`setup-oh-my-posh.sh`** / **`setup-oh-my-posh.ps1`** — oh-my-posh via
   its official installer (Unix) / winget (Windows). The prompt config in
   the dotfiles repo depends on this binary existing — without it a fresh
