@@ -28,6 +28,7 @@ $Scripts = @(
     'setup-nvim.ps1'
     'setup-nvim-tooling.ps1'
     'setup-oh-my-posh.ps1'
+    'setup-fonts.ps1'
     'setup-gh-cli.ps1'
     'setup-obsidian.ps1'
     'setup-vscode.ps1'

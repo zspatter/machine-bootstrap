@@ -5,8 +5,8 @@
     existing.
 
 .NOTES
-    Safe to re-run. Nerd Font installation (which themes generally want)
-    is out of scope -- `oh-my-posh font install` covers it interactively.
+    Safe to re-run. Nerd Fonts (which themes generally want) are handled
+    by setup-fonts.ps1.
 #>
 
 [CmdletBinding()]

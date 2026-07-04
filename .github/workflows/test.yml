@@ -172,6 +172,9 @@ jobs:
       - name: Run setup-oh-my-posh.sh
         run: ./shell/setup-oh-my-posh.sh
 
+      - name: Run setup-fonts.sh
+        run: ./shell/setup-fonts.sh
+
       - name: Run setup-obsidian.sh
         run: ./shell/setup-obsidian.sh
 
@@ -237,6 +240,10 @@ jobs:
       - name: Run setup-oh-my-posh.ps1
         shell: pwsh
         run: .\powershell\setup-oh-my-posh.ps1
+
+      - name: Run setup-fonts.ps1
+        shell: pwsh
+        run: .\powershell\setup-fonts.ps1
 
       - name: Run setup-obsidian.ps1
         shell: pwsh
@@ -325,6 +332,9 @@ jobs:
 
       - name: Run setup-oh-my-posh.sh
         run: ./shell/setup-oh-my-posh.sh
+
+      - name: Run setup-fonts.sh
+        run: ./shell/setup-fonts.sh
 
       - name: Run setup-obsidian.sh
         run: ./shell/setup-obsidian.sh

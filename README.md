@@ -78,8 +78,13 @@ mid-way through an unattended run.
 - **`setup-oh-my-posh.sh`** / **`setup-oh-my-posh.ps1`** — oh-my-posh via
   its official installer (Unix) / winget (Windows). The prompt config in
   the dotfiles repo depends on this binary existing — without it a fresh
-  machine comes up with a broken prompt. Nerd Font installation is out of
-  scope (`oh-my-posh font install` covers it interactively).
+  machine comes up with a broken prompt. Fonts live in `setup-fonts`.
+- **`setup-fonts.sh`** / **`setup-fonts.ps1`** — the preferred Nerd Font
+  families, per-user: JetBrains Mono NF and Fira Code NF (editors,
+  ligatures intact), Meslo LGM NF (terminal prompts — the oh-my-posh
+  recommendation). Installs a curated 11-face subset rather than the ~186
+  size/spacing variants the release zips ship. Skips WSL (fonts render on
+  the Windows host).
 - **`setup-obsidian.sh`** / **`setup-obsidian.ps1`** — Obsidian, app only.
   winget on Windows, brew cask on macOS, the official GitHub-release
   `.deb` on Debian-family (Obsidian has no apt repo), `pacman` on Arch.

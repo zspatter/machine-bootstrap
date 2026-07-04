@@ -19,6 +19,7 @@ SCRIPTS=(
     setup-nvim.sh
     setup-nvim-tooling.sh
     setup-oh-my-posh.sh
+    setup-fonts.sh
     setup-gh-cli.sh
     setup-obsidian.sh
     setup-vscode.sh
