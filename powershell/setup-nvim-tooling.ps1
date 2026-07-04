@@ -11,6 +11,10 @@
     linting.lua / formatting.lua):
 
       lua-language-server, shellcheck, shfmt, stylua  : winget
+      tree-sitter-cli                                 : winget (>=0.26.1)
+      MSVC Build Tools (VC workload)                  : winget -- the C compiler
+        nvim-treesitter parser compiles need; cc discovers it via vswhere, so
+        no PATH/vcvars setup is required
       pyright, bash-language-server                   : npm (Node LTS via winget)
       ruff                                            : uv tool
       PSScriptAnalyzer                                : Install-Module
@@ -55,6 +59,7 @@ $WingetTools = [ordered]@{
     'shellcheck'          = 'koalaman.shellcheck'
     'shfmt'               = 'mvdan.shfmt'
     'stylua'              = 'JohnnyMorganz.StyLua'
+    'tree-sitter'         = 'tree-sitter.tree-sitter-cli'
 }
 
 Write-Step 'Installing winget-packaged tools'
@@ -68,6 +73,32 @@ foreach ($cmd in $WingetTools.Keys) {
     if ($LASTEXITCODE -ne 0) { throw "winget install $($WingetTools[$cmd]) exited with code $LASTEXITCODE" }
 }
 Update-SessionPath
+
+# --- MSVC Build Tools: the C compiler for nvim-treesitter parser compiles ---
+# tree-sitter's build step (rust cc crate) locates MSVC through vswhere, so
+# nothing here touches PATH and no vcvars shell is ever needed. Lighter
+# compilers were evaluated and rejected (2026-07-03): standalone LLVM lacks
+# the Windows SDK headers clang-cl needs, and the cc crate mishandles both
+# multi-word CC values ("zig cc") and zig's target-triple spelling. ~3GB,
+# but it's the one path upstream actually supports.
+Write-Step 'Installing MSVC Build Tools (treesitter parser compiles)'
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+function Test-VcTools {
+    (Test-Path $vswhere) -and
+        (& $vswhere -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -latest -property installationPath)
+}
+if (Test-VcTools) {
+    Write-Info 'VC tools already present'
+}
+else {
+    winget install -e --id Microsoft.VisualStudio.2022.BuildTools `
+        --accept-package-agreements --accept-source-agreements `
+        --override '--quiet --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
+    # 3010 = success, reboot pending -- fine for a compiler.
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+        throw "winget install BuildTools exited with code $LASTEXITCODE"
+    }
+}
 
 # --- npm-only language servers (need Node LTS first) ---
 Write-Step 'Installing npm-based language servers'
@@ -131,7 +162,7 @@ else {
 Write-Step 'Verifying'
 $failed = @()
 foreach ($cmd in @('lua-language-server', 'shellcheck', 'shfmt', 'stylua', 'ruff',
-                   'pyright-langserver', 'bash-language-server')) {
+                   'pyright-langserver', 'bash-language-server', 'tree-sitter')) {
     if (Get-Command $cmd -ErrorAction SilentlyContinue) {
         Write-Info "${cmd}: ok"
     }
@@ -142,6 +173,7 @@ foreach ($cmd in @('lua-language-server', 'shellcheck', 'shfmt', 'stylua', 'ruff
 }
 if (Get-Module -ListAvailable PSScriptAnalyzer) { Write-Info 'PSScriptAnalyzer: ok' } else { $failed += 'PSScriptAnalyzer' }
 if (Test-Path $PsesLauncher) { Write-Info 'PowerShellEditorServices: ok' } else { $failed += 'PES' }
+if (Test-VcTools) { Write-Info 'MSVC VC tools: ok' } else { $failed += 'MSVC-VC-tools' }
 if ($failed.Count -gt 0) {
     Write-Info "Not resolvable in this session: $($failed -join ', '). Open a new shell and verify."
 }

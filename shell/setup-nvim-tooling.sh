@@ -8,11 +8,17 @@
 # tools, so this script is where their maintenance lives. Tool inventory
 # (driven by that config's lsp.lua / linting.lua / formatting.lua):
 #
-#   shellcheck, shfmt, node/npm  : apt (all packaged) / pacman / brew
+#   shfmt, shellcheck, node/npm  : apt (all packaged) / pacman / brew
+#     (shfmt listed first: a comment starting '# shellcheck' parses as a
+#     malformed shellcheck *directive* and errors the whole file)
 #   lua-language-server, stylua  : pacman/brew have them; apt does NOT ->
 #                                  GitHub release binaries into ~/.local
 #   pyright, bash-language-server: npm -g
 #   ruff                         : uv tool
+#   tree-sitter CLI (>=0.26.1)   : GitHub release binary -> ~/.local/bin
+#                                  (apt's tree-sitter-cli is too old)
+#   C compiler (gcc)             : apt/pacman -- nvim-treesitter compiles
+#                                  parsers locally
 #   PSScriptAnalyzer + PowerShell Editor Services: only when pwsh exists
 #     (PES lands at ~/.local/share/powershell-editor-services, the fixed
 #     path the config's powershell_es setup relies on -- change one,
@@ -154,6 +160,54 @@ fetch_latest_tag() {
     # literal tag in its asset filenames (no latest/download shortcut works).
     curl -fsSLI -o /dev/null -w '%{url_effective}' \
         "https://github.com/$1/releases/latest" | sed 's|.*/||'
+}
+
+install_treesitter_toolchain() {
+    # nvim 0.12 ships treesitter highlighting in core but bundles only seven
+    # parsers; the rest (python, bash, ...) are compiled locally by the
+    # nvim-treesitter fork, which needs a C compiler and the tree-sitter CLI
+    # >= 0.26.1. Distro CLI packages lag (Ubuntu 26.04 apt: 0.25.x), so the
+    # CLI comes from GitHub release binaries regardless of distro -- same
+    # pattern as lua-language-server above.
+    log_step 'Installing treesitter parser toolchain'
+
+    if ! command -v cc >/dev/null 2>&1 && ! command -v gcc >/dev/null 2>&1; then
+        if command -v apt-get >/dev/null 2>&1; then
+            run_privileged apt-get update
+            run_privileged apt-get install -y gcc
+        elif command -v pacman >/dev/null 2>&1; then
+            run_privileged pacman -Syu --noconfirm --needed gcc
+        else
+            log_info 'No C compiler found; install one (Darwin: xcode-select --install), then re-run.'
+            exit 1
+        fi
+    fi
+
+    local required='0.26.1' current=''
+    if command -v tree-sitter >/dev/null 2>&1; then
+        current=$(tree-sitter --version | awk '{print $2}')
+    fi
+    if [[ -n "$current" && "$(printf '%s\n' "$required" "$current" | sort -V | head -1)" == "$required" ]]; then
+        log_info "tree-sitter CLI $current already installed (>= $required)"
+        return
+    fi
+
+    local arch os tmpdir
+    case "$(uname -m)" in
+        x86_64) arch='x64' ;;
+        aarch64 | arm64) arch='arm64' ;;
+        *) log_info "Unsupported architecture: $(uname -m)"; exit 1 ;;
+    esac
+    os='linux'
+    [[ "$(uname -s)" == 'Darwin' ]] && os='macos'
+    tmpdir=$(mktemp -d)
+    fetch "https://github.com/tree-sitter/tree-sitter/releases/latest/download/tree-sitter-$os-$arch.gz" \
+         "$tmpdir/tree-sitter.gz"
+    gunzip "$tmpdir/tree-sitter.gz"
+    mkdir -p "$HOME/.local/bin"
+    install -m 0755 "$tmpdir/tree-sitter" "$HOME/.local/bin/tree-sitter"
+    rm -rf "$tmpdir"
+    log_info "Installed tree-sitter CLI $("$HOME/.local/bin/tree-sitter" --version | awk '{print $2}')"
 }
 
 install_npm_servers() {
