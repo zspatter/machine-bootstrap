@@ -21,6 +21,12 @@
 
     Machine-scope MSI needs elevation: run from an admin 5.1 shell, or
     once sudo is available, `sudo powershell -File ...`.
+
+    Updates: once installed, the MSI registers cleanly with winget --
+    `winget upgrade Microsoft.PowerShell` (or update-all.ps1's sweep)
+    handles it from then on, and the MSI opts into Microsoft Update as a
+    second lane. The direct-MSI route is only ever needed for the initial
+    install or arch/scope transitions.
 #>
 
 [CmdletBinding()]
