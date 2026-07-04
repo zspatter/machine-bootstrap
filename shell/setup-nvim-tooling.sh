@@ -248,6 +248,20 @@ install_roslyn() {
         log_info 'No dotnet SDK; skipping (install the .NET SDK and re-run for C# LSP).'
         return
     fi
+    # The tool package carries its DotnetToolSettings.xml under
+    # tools/net10.0/ -- older SDKs can't see it and fail with "settings file
+    # not found". SDK 10 installs side-by-side; existing projects keep
+    # building with whatever SDK their global.json picks.
+    if ! dotnet --list-sdks | awk -F. '{print $1}' | grep -qE '^(1[0-9]|[2-9][0-9])$'; then
+        log_info 'No .NET SDK >= 10 (required by the tool package format).'
+        if command -v apt-get >/dev/null 2>&1; then
+            run_privileged apt-get update
+            run_privileged apt-get install -y dotnet-sdk-10.0
+        else
+            log_info 'Install a .NET SDK >= 10, then re-run for C# LSP.'
+            return
+        fi
+    fi
     # --add-source, not --source: SDK 8's tool commands only know the former;
     # newer SDKs accept both, so this is the portable spelling.
     dotnet tool update -g roslyn-language-server --prerelease \

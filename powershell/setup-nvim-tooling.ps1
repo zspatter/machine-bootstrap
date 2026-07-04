@@ -126,10 +126,21 @@ if ($LASTEXITCODE -ne 0) { throw "npm install exited with code $LASTEXITCODE" }
 # from and updates far more often than nuget.org.
 Write-Step 'Installing Roslyn language server (C#)'
 if (Get-Command dotnet -ErrorAction SilentlyContinue) {
-    # --add-source, not --source: SDK 8's tool commands only know the former
-    # (hit live on 8.0.422); newer SDKs accept both, so this is the portable
-    # spelling. It adds the feed alongside nuget.org rather than replacing
-    # it -- the prerelease resolution still lands on the Azure feed's builds.
+    # The tool package carries its DotnetToolSettings.xml under
+    # tools/net10.0/ -- older SDKs can't see it and fail with "settings
+    # file not found" (hit live on 8.0.422; nupkg inspected to confirm).
+    # SDK 10 installs side-by-side, so existing projects keep building.
+    $sdkMajors = dotnet --list-sdks | ForEach-Object { [int]($_ -split '\.')[0] }
+    if (-not ($sdkMajors | Where-Object { $_ -ge 10 })) {
+        Write-Info 'No .NET SDK >= 10 (required by the tool package format); installing side-by-side.'
+        winget install -e --id Microsoft.DotNet.SDK.10 --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -ne 0) { throw "winget install .NET SDK 10 exited with code $LASTEXITCODE" }
+        Update-SessionPath
+    }
+    # --add-source, not --source: SDK 8's tool commands only know the former;
+    # newer SDKs accept both, so this is the portable spelling. It adds the
+    # feed alongside nuget.org rather than replacing it -- prerelease
+    # resolution still lands on the freshest builds.
     dotnet tool update -g roslyn-language-server --prerelease `
         --add-source https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json
     if ($LASTEXITCODE -ne 0) { throw "dotnet tool update roslyn-language-server exited with code $LASTEXITCODE" }
