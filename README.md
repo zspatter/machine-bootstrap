@@ -91,12 +91,14 @@ mid-way through an unattended run.
   `~/.local/bin` elsewhere. WSL-skips. GUI-specific settings (font,
   animations) live in the nvim config gated on `vim.g.neovide`.
 - **`setup-windows-elevated.ps1`** (Windows only, NOT in the chain) —
-  the single elevated touchpoint: Developer Mode (symlink-deploy without
-  admin shells), the OpenSSH Client capability (ssh/ssh-add/ssh-keygen
-  are *not* installed by default), the ssh-agent service, and NTFS long
-  paths. Run once from an admin shell; everything else in this repo
-  stays user-scope by design. (`setup-wsl.ps1` stays separate — it can
-  require a reboot.)
+  the single elevated touchpoint: Windows sudo in inline mode (the
+  deliberate alternative to Developer Mode — elevation stays explicit
+  and per-command, `sudo symlink-deploy dotfiles`, instead of making
+  symlinks globally unprivileged), the OpenSSH Client capability
+  (ssh/ssh-add/ssh-keygen are *not* installed by default), the
+  ssh-agent service, and NTFS long paths. Run once from an admin shell;
+  everything else in this repo stays user-scope by design.
+  (`setup-wsl.ps1` stays separate — it can require a reboot.)
 - **`setup-ssh-github.sh`** / **`setup-ssh-github.ps1`** — generates an
   ed25519 key when absent (passphrase-less, the unattended-bootstrap
   trade — regenerate with `ssh-keygen -p` if wanted), loads it into the

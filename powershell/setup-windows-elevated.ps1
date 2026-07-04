@@ -6,9 +6,11 @@
 
 .NOTES
     What it does and why:
-      - Developer Mode      : symlink creation without elevation -- this is
-                              what lets sym-lattice's symlink-deploy run
-                              from a normal shell instead of an admin one.
+      - Windows sudo (inline): the deliberate alternative to Developer
+                              Mode -- elevation stays explicit and
+                              per-command (`sudo symlink-deploy dotfiles`)
+                              instead of making symlinks globally
+                              unprivileged. apt/brew muscle memory.
       - OpenSSH Client      : ssh / ssh-add / ssh-keygen (a Windows
                               optional capability, NOT installed by
                               default) -- setup-ssh-github depends on it.
@@ -37,17 +39,28 @@ if (-not $elevated) {
     exit 1
 }
 
-Write-Step 'Developer Mode (elevation-free symlinks)'
-$devKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock'
-$dev = Get-ItemProperty -Path $devKey -Name AllowDevelopmentWithoutDevLicense -ErrorAction SilentlyContinue
-if ($dev -and $dev.AllowDevelopmentWithoutDevLicense -eq 1) {
-    Write-Info 'Already enabled.'
+Write-Step 'Windows sudo (inline mode)'
+# Deliberately NOT Developer Mode: that makes symlink creation globally
+# unprivileged, a broader grant than wanted. sudo keeps elevation explicit
+# and per-command -- `sudo symlink-deploy dotfiles` -- and inline mode runs
+# it in the current window, apt-style.
+if (-not (Get-Command sudo -ErrorAction SilentlyContinue)) {
+    Write-Info 'No built-in sudo (needs Windows 11 24H2+); elevated tasks keep needing an admin shell.'
+}
+elseif ((sudo config 2>&1) -match 'Inline') {
+    Write-Info 'Already in inline mode.'
 }
 else {
-    New-Item -Path $devKey -Force | Out-Null
-    New-ItemProperty -Path $devKey -Name AllowDevelopmentWithoutDevLicense `
-        -Value 1 -PropertyType DWord -Force | Out-Null
-    Write-Info 'Enabled. symlink-deploy now works from a normal shell.'
+    sudo config --enable normal 2>&1 | Out-Null
+    if ((sudo config 2>&1) -match 'Inline') {
+        Write-Info 'Enabled inline mode.'
+    }
+    else {
+        # CLI syntax has varied across builds; the registry value is stable.
+        Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo' `
+            -Name Enabled -Value 3 -Type DWord
+        Write-Info 'Enabled inline mode (via registry).'
+    }
 }
 
 Write-Step 'OpenSSH Client capability'

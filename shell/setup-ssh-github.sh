@@ -18,6 +18,25 @@ set -euo pipefail
 log_step() { printf '\n==> %s\n' "$1"; }
 log_info() { printf '    %s\n' "$1"; }
 
+run_privileged() {
+    if [[ "$(id -u)" -eq 0 ]]; then "$@"; else sudo "$@"; fi
+}
+
+# Minimal containers (arch, debian slim) ship neither ssh-keygen nor even
+# hostname -- caught by CI. uname -n replaces hostname everywhere below.
+if ! command -v ssh-keygen >/dev/null 2>&1; then
+    log_step 'Installing OpenSSH client'
+    if command -v apt-get >/dev/null 2>&1; then
+        run_privileged apt-get update
+        run_privileged apt-get install -y openssh-client
+    elif command -v pacman >/dev/null 2>&1; then
+        run_privileged pacman -Syu --noconfirm --needed openssh
+    else
+        log_info 'No ssh-keygen and no supported package manager; install OpenSSH, then re-run.'
+        exit 1
+    fi
+fi
+
 key_path="$HOME/.ssh/id_ed25519"
 pub_path="$key_path.pub"
 
@@ -27,7 +46,7 @@ if [[ -f "$key_path" ]]; then
 else
     mkdir -p "$HOME/.ssh"
     chmod 700 "$HOME/.ssh"
-    ssh-keygen -t ed25519 -f "$key_path" -N '' -C "$(whoami)@$(hostname)" >/dev/null
+    ssh-keygen -t ed25519 -f "$key_path" -N '' -C "$(whoami)@$(uname -n)" >/dev/null
     log_info "Generated $key_path (no passphrase -- see header)."
 fi
 
@@ -38,8 +57,8 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
     if gh ssh-key list 2>/dev/null | grep -qF "$key_body"; then
         log_info 'Key already registered with GitHub.'
     else
-        gh ssh-key add "$pub_path" --title "$(hostname)"
-        log_info "Registered with GitHub as '$(hostname)'."
+        gh ssh-key add "$pub_path" --title "$(uname -n)"
+        log_info "Registered with GitHub as '$(uname -n)'."
     fi
 else
     log_info 'gh CLI missing or unauthenticated; add the key manually:'

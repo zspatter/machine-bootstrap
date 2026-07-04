@@ -42,7 +42,11 @@ if (Test-Path $KeyPath) {
 }
 else {
     New-Item -ItemType Directory -Force -Path (Split-Path $KeyPath) | Out-Null
-    ssh-keygen -t ed25519 -f $KeyPath -N '""' -C "$env:USERNAME@$env:COMPUTERNAME" | Out-Null
+    # -N "" (a genuinely empty arg -- pwsh 7 passes it correctly). The
+    # often-cited -N '""' workaround is for Windows PowerShell 5.1 and
+    # produces a key whose passphrase is literally two quote characters
+    # here -- which made ssh-add prompt forever and hung a CI runner.
+    ssh-keygen -t ed25519 -f $KeyPath -N "" -C "$env:USERNAME@$env:COMPUTERNAME" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "ssh-keygen exited with code $LASTEXITCODE" }
     Write-Info "Generated $KeyPath (no passphrase -- see script notes)."
 }
