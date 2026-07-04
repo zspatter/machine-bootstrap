@@ -248,8 +248,10 @@ install_roslyn() {
         log_info 'No dotnet SDK; skipping (install the .NET SDK and re-run for C# LSP).'
         return
     fi
+    # --add-source, not --source: SDK 8's tool commands only know the former;
+    # newer SDKs accept both, so this is the portable spelling.
     dotnet tool update -g roslyn-language-server --prerelease \
-        --source https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json
+        --add-source https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json
 }
 
 install_ruff() {

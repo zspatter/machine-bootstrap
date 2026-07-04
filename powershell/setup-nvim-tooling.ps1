@@ -126,8 +126,12 @@ if ($LASTEXITCODE -ne 0) { throw "npm install exited with code $LASTEXITCODE" }
 # from and updates far more often than nuget.org.
 Write-Step 'Installing Roslyn language server (C#)'
 if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+    # --add-source, not --source: SDK 8's tool commands only know the former
+    # (hit live on 8.0.422); newer SDKs accept both, so this is the portable
+    # spelling. It adds the feed alongside nuget.org rather than replacing
+    # it -- the prerelease resolution still lands on the Azure feed's builds.
     dotnet tool update -g roslyn-language-server --prerelease `
-        --source https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json
+        --add-source https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-impl/nuget/v3/index.json
     if ($LASTEXITCODE -ne 0) { throw "dotnet tool update roslyn-language-server exited with code $LASTEXITCODE" }
 }
 else {
