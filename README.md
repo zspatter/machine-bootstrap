@@ -90,6 +90,16 @@ mid-way through an unattended run.
   is the real prerequisite). winget / brew cask / pacman, AppImage into
   `~/.local/bin` elsewhere. WSL-skips. GUI-specific settings (font,
   animations) live in the nvim config gated on `vim.g.neovide`.
+- **`setup-pwsh.ps1`** (Windows only, NOT in the chain — it's the rung
+  *below* the chain) — PowerShell 7 (x64, MSI, machine-wide) and Windows
+  Terminal, written in Windows PowerShell **5.1** syntax because that's
+  the only shell a clean machine ships and every other script here
+  assumes pwsh 7. Windows bootstrap order from scratch:
+  `setup-pwsh.ps1` (from the stock admin 5.1 shell) → open pwsh →
+  `sudo pwsh -NoProfile -File setup-windows-elevated.ps1` →
+  `install-all.ps1`. `--source winget` and `--architecture x64` are both
+  load-bearing (msstore's same-id MSIX lands per-user in WindowsApps;
+  x86 pwsh loses System32 to WOW64 redirection — both hit live).
 - **`setup-windows-elevated.ps1`** (Windows only, NOT in the chain) —
   the single elevated touchpoint: Windows sudo in inline mode (the
   deliberate alternative to Developer Mode — elevation stays explicit

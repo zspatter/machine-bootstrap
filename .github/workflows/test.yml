@@ -230,6 +230,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # shell: powershell (5.1) is the point -- this script is the rung
+      # below pwsh 7 and must run on a clean machine's stock shell.
+      - name: Run setup-pwsh.ps1 under Windows PowerShell 5.1
+        shell: powershell
+        run: .\powershell\setup-pwsh.ps1 -SkipWindowsTerminal
+
       - name: Run setup-uv.ps1 (foundation -- nvim tooling's ruff install rides uv)
         shell: pwsh
         run: .\powershell\setup-uv.ps1
