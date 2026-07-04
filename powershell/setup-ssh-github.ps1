@@ -28,6 +28,19 @@ function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-Info($msg) { Write-Host "    $msg" -ForegroundColor DarkGray }
 
 if (-not (Get-Command ssh-keygen -ErrorAction SilentlyContinue)) {
+    # 32-bit pwsh on 64-bit Windows: WOW64 redirects System32 to SysWOW64,
+    # which has no OpenSSH -- the capability can be fully installed yet
+    # invisible to this process (hit live: the machine's only pwsh was the
+    # x86 build). Sysnative is the redirection escape hatch for detection.
+    if (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSystem -and
+        (Test-Path "$env:windir\Sysnative\OpenSSH\ssh-keygen.exe")) {
+        Write-Info 'OpenSSH IS installed, but this is 32-bit PowerShell on 64-bit Windows --'
+        Write-Info 'System32 redirection hides it. Fix the shell, not ssh: from a CMD window,'
+        Write-Info '  winget uninstall "PowerShell 7-x86"'
+        Write-Info '  winget install -e --id Microsoft.PowerShell --architecture x64'
+        Write-Info '(x86/x64 share an MSI upgrade identity, so uninstall must come first.)'
+        exit 1
+    }
     Write-Info 'Windows OpenSSH Client is not installed (ssh/ssh-keygen/ssh-add missing).'
     Write-Info 'Run the elevated pass once, then re-run this:'
     Write-Info "  sudo pwsh -NoProfile -File $PSScriptRoot\setup-windows-elevated.ps1"
