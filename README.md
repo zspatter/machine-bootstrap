@@ -244,10 +244,14 @@ and `uv python upgrade`.
 ## Notes
 
 - **CI** (`.github/workflows/test.yml`): the uv pair runs on native
-  `ubuntu-22.04`/`ubuntu-24.04`/`macos-latest`/`windows-latest`, plus
-  `debian:11`/`debian:12`/`kalilinux/kali-rolling`/`archlinux:latest`
-  containers, each verifying `uv run python --version` end-to-end and
-  re-running the script to prove idempotency. A dedicated `uv-no-tools`
+  `ubuntu-latest`/`macos-latest`/`windows-latest` plus a pinned
+  `ubuntu-22.04` floor (GitHub has no rolling previous-LTS label — bump
+  the pin when GitHub retires it), and on
+  `debian:stable`/`debian:oldstable`/`kalilinux/kali-rolling`/
+  `archlinux:latest` containers — rolling aliases on purpose, so new
+  releases roll into the matrix without anyone remembering to bump a
+  version. Each leg verifies `uv run python --version` end-to-end and
+  re-runs the script to prove idempotency. A dedicated `uv-no-tools`
   job starts from a container with no git at all (repo fetched by plain
   tarball) to prove `setup-git.sh` genuinely provides git and `setup-uv.sh`
   needs nothing beyond curl. `gh-cli` jobs cover all three platforms plus

@@ -17,7 +17,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04, macos-latest]
+        # ubuntu-latest rolls with GitHub (24.04 today, 26.04 when they
+        # flip it); ubuntu-22.04 is the deliberate old-glibc/old-apt
+        # floor -- GitHub has no rolling previous-LTS label, so the floor
+        # is a pin by necessity. Bump it when GitHub retires the label
+        # (the weekly cron failing on a removed label IS the reminder).
+        os: [ubuntu-latest, ubuntu-22.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -69,16 +74,19 @@ jobs:
   # debian/kali are apt-based; archlinux stands in for CachyOS (same
   # package manager, no reliably maintained official CachyOS image). git is
   # pre-installed here for actions/checkout's own sake -- the uv-no-tools
-  # job below covers the genuinely-bare-machine path.
+  # job below covers the genuinely-bare-machine path. Debian rides the
+  # rolling stable/oldstable aliases so releases roll through on their
+  # own -- the pinned 11/12 had silently aged into oldstable/oldoldstable,
+  # leaving current stable untested.
   uv-distros:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - image: 'debian:12'
+          - image: 'debian:stable'
             prereq: 'apt-get update && apt-get install -y git curl ca-certificates'
-          - image: 'debian:11'
+          - image: 'debian:oldstable'
             prereq: 'apt-get update && apt-get install -y git curl ca-certificates'
           - image: 'kalilinux/kali-rolling'
             prereq: 'apt-get update && apt-get install -y git curl ca-certificates'
@@ -108,7 +116,7 @@ jobs:
   uv-no-tools:
     runs-on: ubuntu-latest
     container:
-      image: 'debian:12'
+      image: 'debian:stable'
     steps:
       - name: Install only curl/tar/ca-certificates (no git)
         run: apt-get update && apt-get install -y curl ca-certificates tar
@@ -341,7 +349,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: 'debian:12'
+          - image: 'debian:stable'
             prereq: 'apt-get update && apt-get install -y git curl ca-certificates tar'
           - image: 'archlinux:latest'
             prereq: 'pacman -Syu --noconfirm --needed git curl ca-certificates tar'
@@ -457,7 +465,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: 'debian:12'
+          - image: 'debian:stable'
             prereq: 'apt-get update && apt-get install -y git ca-certificates'
           - image: 'archlinux:latest'
             prereq: 'pacman -Syu --noconfirm --needed git ca-certificates'
