@@ -57,7 +57,11 @@ fi
 ensure_unzip
 
 # Official installer, downloaded to a file first rather than piped
-# straight into bash -- same hygiene as the uv installer.
+# straight into bash -- same hygiene as the uv installer. It refuses to
+# create the target directory itself ("Directory ... does not exist"),
+# and on a genuinely bare machine ~/.local/bin isn't there yet -- every
+# other script that lands binaries there creates it, so match them.
+mkdir -p "$HOME/.local/bin"
 tmp=$(mktemp)
 fetch 'https://ohmyposh.dev/install.sh' "$tmp"
 bash "$tmp" -d "$HOME/.local/bin"
