@@ -32,9 +32,9 @@ run_brew() {
 
 fetch() {
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$1" -o "$2"
+        curl -fsSL --retry 3 "$1" -o "$2"
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO "$2" "$1"
+        wget -qO "$2" --tries=3 "$1"
     else
         log_info 'Neither curl nor wget found; install one, then re-run.'
         exit 1

@@ -41,7 +41,7 @@ if (Get-Command claude -ErrorAction SilentlyContinue) {
 # into iex -- same hygiene as the uv installer. Run via powershell
 # -ExecutionPolicy Bypass so a restrictive policy can't block it.
 $tmp = Join-Path $env:TEMP 'claude-install.ps1'
-Invoke-WebRequest -UseBasicParsing -Uri 'https://claude.ai/install.ps1' -OutFile $tmp
+Invoke-WebRequest -UseBasicParsing -MaximumRetryCount 3 -RetryIntervalSec 2 -Uri 'https://claude.ai/install.ps1' -OutFile $tmp
 powershell -NoProfile -ExecutionPolicy Bypass -File $tmp
 $installerExit = $LASTEXITCODE
 Remove-Item $tmp -ErrorAction SilentlyContinue

@@ -42,7 +42,7 @@ function Ensure-Uv {
     # via powershell.exe -ExecutionPolicy Bypass so a restrictive local
     # policy can't block the downloaded file.
     $tmp = Join-Path $env:TEMP 'uv-install.ps1'
-    Invoke-WebRequest -UseBasicParsing -Uri 'https://astral.sh/uv/install.ps1' -OutFile $tmp
+    Invoke-WebRequest -UseBasicParsing -MaximumRetryCount 3 -RetryIntervalSec 2 -Uri 'https://astral.sh/uv/install.ps1' -OutFile $tmp
     powershell -NoProfile -ExecutionPolicy Bypass -File $tmp
     $installerExit = $LASTEXITCODE
     Remove-Item $tmp -ErrorAction SilentlyContinue

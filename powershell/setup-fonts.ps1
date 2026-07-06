@@ -53,7 +53,7 @@ foreach ($font in $Fonts) {
 
     $zip = Join-Path $env:TEMP "$($font.Asset)-nf.zip"
     $extract = Join-Path $env:TEMP "$($font.Asset)-nf"
-    Invoke-WebRequest -UseBasicParsing -OutFile $zip -Uri `
+    Invoke-WebRequest -UseBasicParsing -MaximumRetryCount 3 -RetryIntervalSec 2 -OutFile $zip -Uri `
         "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/$($font.Asset).zip"
     Remove-Item $extract -Recurse -Force -ErrorAction SilentlyContinue
     Expand-Archive -Path $zip -DestinationPath $extract -Force

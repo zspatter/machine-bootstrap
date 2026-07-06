@@ -1,7 +1,8 @@
 # machine-bootstrap
 
-Fresh-machine setup scripts. Not project-specific, and not dotfiles — see
-[sym-lattice](../sym-lattice) for that. Each script bootstraps one tool
+Fresh-machine setup scripts. Not project-specific, and not dotfiles —
+those live in `sym-lattice`, a private repo that consumes this one as a
+submodule. Each script bootstraps one tool
 (or tightly related pair) onto a machine that doesn't have it yet, kept
 per-tool and per-platform so each concern stays independently useful.
 

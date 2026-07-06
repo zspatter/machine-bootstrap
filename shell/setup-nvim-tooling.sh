@@ -61,9 +61,9 @@ run_brew() {
 
 fetch() {
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$1" -o "$2"
+        curl -fsSL --retry 3 "$1" -o "$2"
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO "$2" "$1"
+        wget -qO "$2" --tries=3 "$1"
     else
         log_info 'Neither curl nor wget found; install one, then re-run.'
         exit 1
@@ -163,7 +163,7 @@ fetch_latest_tag() {
     # GitHub's /releases/latest redirect carries the tag; parse it from the
     # effective URL rather than requiring jq. lua-language-server needs the
     # literal tag in its asset filenames (no latest/download shortcut works).
-    curl -fsSLI -o /dev/null -w '%{url_effective}' \
+    curl -fsSLI --retry 3 -o /dev/null -w '%{url_effective}' \
         "https://github.com/$1/releases/latest" | sed 's|.*/||'
 }
 

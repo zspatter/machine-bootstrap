@@ -40,7 +40,7 @@ install_vscode_apt() {
     run_privileged apt-get install -y curl ca-certificates
 
     run_privileged mkdir -p -m 755 /etc/apt/keyrings
-    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+    curl -fsSL --retry 3 https://packages.microsoft.com/keys/microsoft.asc \
         | run_privileged tee /etc/apt/keyrings/microsoft.asc >/dev/null
     run_privileged chmod go+r /etc/apt/keyrings/microsoft.asc
 

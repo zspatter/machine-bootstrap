@@ -38,7 +38,7 @@ install_claude_desktop_apt() {
     run_privileged apt-get update
     run_privileged apt-get install -y curl ca-certificates
 
-    curl -fsSL https://downloads.claude.ai/claude-desktop/key.asc \
+    curl -fsSL --retry 3 https://downloads.claude.ai/claude-desktop/key.asc \
         | run_privileged tee /usr/share/keyrings/claude-desktop-archive-keyring.asc >/dev/null
     echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/claude-desktop-archive-keyring.asc] https://downloads.claude.ai/claude-desktop/apt/stable stable main" \
         | run_privileged tee /etc/apt/sources.list.d/claude-desktop.list >/dev/null

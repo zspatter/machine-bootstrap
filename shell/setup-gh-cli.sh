@@ -55,7 +55,7 @@ install_gh_apt() {
     run_privileged apt-get install -y curl ca-certificates
 
     run_privileged mkdir -p -m 755 /etc/apt/keyrings
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    curl -fsSL --retry 3 https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         | run_privileged tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
     run_privileged chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
 

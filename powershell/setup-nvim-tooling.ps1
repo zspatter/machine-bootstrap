@@ -182,7 +182,7 @@ if (Test-Path $PsesLauncher) {
 }
 else {
     $zip = Join-Path $env:TEMP 'PowerShellEditorServices.zip'
-    Invoke-WebRequest -UseBasicParsing -OutFile $zip -Uri `
+    Invoke-WebRequest -UseBasicParsing -MaximumRetryCount 3 -RetryIntervalSec 2 -OutFile $zip -Uri `
         'https://github.com/PowerShell/PowerShellEditorServices/releases/latest/download/PowerShellEditorServices.zip'
     Expand-Archive -Path $zip -DestinationPath $PsesBundle -Force
     Remove-Item $zip -ErrorAction SilentlyContinue
