@@ -1,5 +1,7 @@
 # machine-bootstrap
 
+[![Test bootstrap scripts](https://github.com/zspatter/machine-bootstrap/actions/workflows/test.yml/badge.svg)](https://github.com/zspatter/machine-bootstrap/actions/workflows/test.yml)
+
 Fresh-machine setup scripts. Not project-specific, and not dotfiles —
 those live in `sym-lattice`, a private repo that consumes this one as a
 submodule. Each script bootstraps one tool
@@ -11,9 +13,10 @@ per-tool and per-platform so each concern stays independently useful.
 - **`shell/`** — bash scripts for Linux and macOS
 - **`powershell/`** — PowerShell scripts for Windows
 
-Same tool, same filename stem, one script per platform family. Two
-Windows-only extras have no `shell/` counterpart: `setup-wsl.ps1`
-(WSL is itself Windows-only) and nothing else by design.
+Same tool, same filename stem, one script per platform family. The only
+unpaired scripts are the ones whose tool is single-platform by nature:
+`setup-wsl.ps1` and `setup-pwsh.ps1` (Windows-only) and `setup-vimr.sh`
+(macOS-only).
 
 ## One-command chain
 
@@ -97,6 +100,10 @@ mid-way through an unattended run.
   is the real prerequisite). winget / brew cask / pacman, AppImage into
   `~/.local/bin` elsewhere. WSL-skips. GUI-specific settings (font,
   animations) live in the nvim config gated on `vim.g.neovide`.
+- **`setup-vimr.sh`** (macOS only — no Linux/Windows build exists, so no
+  twin; the script self-skips elsewhere) — VimR, the macOS-native Neovim
+  GUI, via brew cask. Reads the same deployed nvim config; Neovide stays
+  the GUI everywhere else.
 - **`setup-pwsh.ps1`** (Windows only, NOT in the chain — it's the rung
   *below* the chain) — PowerShell 7 (x64, MSI, machine-wide) and Windows
   Terminal, written in Windows PowerShell **5.1** syntax because that's
@@ -269,3 +276,7 @@ and `uv python upgrade`.
   affected machines: uv-managed flows (`uv run`, `uvx`, `uv venv`) are
   fully functional, but the bare `python`/`python3` shims aren't
   available until the upstream bug is fixed.
+
+## License
+
+MIT - see [LICENSE](LICENSE).

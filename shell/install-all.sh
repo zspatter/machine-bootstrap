@@ -21,6 +21,7 @@ SCRIPTS=(
     setup-oh-my-posh.sh
     setup-fonts.sh
     setup-neovide.sh
+    setup-vimr.sh
     setup-gh-cli.sh
     setup-ssh-github.sh
     setup-obsidian.sh

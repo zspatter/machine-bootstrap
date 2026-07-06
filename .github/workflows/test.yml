@@ -178,6 +178,9 @@ jobs:
       - name: Run setup-neovide.sh
         run: ./shell/setup-neovide.sh
 
+      - name: Run setup-vimr.sh (installs on macOS, self-skips elsewhere)
+        run: ./shell/setup-vimr.sh
+
       - name: Run setup-ssh-github.sh
         run: ./shell/setup-ssh-github.sh
 
@@ -211,6 +214,7 @@ jobs:
           done
           code --version | head -n1
           if [ "$(uname -s)" = "Darwin" ]; then
+            test -d /Applications/VimR.app && echo "VimR.app present"
             test -d /Applications/Obsidian.app && echo "Obsidian.app present"
             test -d /Applications/Zen.app && echo "Zen.app present"
             test -d /Applications/LibreWolf.app && echo "LibreWolf.app present"
