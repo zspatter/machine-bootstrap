@@ -102,6 +102,35 @@ else {
     Write-Info 'https://github.com/settings/ssh/new (or run setup-gh-cli.ps1 + gh auth login, then re-run).'
 }
 
+# Seed github.com into known_hosts, or the FIRST ssh operation (vault
+# clones, plugin installs riding an insteadOf rewrite) stops on the
+# interactive host-key prompt -- a third interactive moment the
+# onboarding flow promises not to have. Preferred source is the GitHub
+# API over TLS (`gh api meta`, authenticated above); ssh-keyscan is the
+# fallback when gh isn't ready -- trust-on-first-scan, same trust the
+# interactive prompt would have asked for.
+Write-Step 'known_hosts (github.com)'
+$knownHosts = Join-Path $HOME '.ssh\known_hosts'
+if ((Test-Path $knownHosts) -and (Select-String -Path $knownHosts -Pattern '^github\.com ' -Quiet)) {
+    Write-Info 'github.com already present in known_hosts.'
+}
+else {
+    $hostLines = @()
+    if ($ghReady) {
+        $hostLines = @(gh api meta --jq '.ssh_keys[]' 2>$null | ForEach-Object { "github.com $_" })
+    }
+    if (-not $hostLines) {
+        $hostLines = @(ssh-keyscan -t ed25519,ecdsa,rsa github.com 2>$null)
+    }
+    if ($hostLines) {
+        Add-Content -Path $knownHosts -Value $hostLines
+        Write-Info "Seeded $($hostLines.Count) github.com host key(s) into known_hosts."
+    }
+    else {
+        Write-Info 'Could not fetch host keys (offline?); the first ssh connection will prompt.'
+    }
+}
+
 Write-Step 'Done'
 Write-Info 'Test with: ssh -T git@github.com'
 exit 0

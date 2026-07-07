@@ -66,5 +66,33 @@ else
     log_info 'https://github.com/settings/ssh/new (or run setup-gh-cli.sh + gh auth login, then re-run).'
 fi
 
+# Seed github.com into known_hosts, or the FIRST ssh operation (vault
+# clones, plugin installs riding an insteadOf rewrite) stops on the
+# interactive host-key prompt -- a third interactive moment the
+# onboarding flow promises not to have. Preferred source is the GitHub
+# API over TLS (`gh api meta`, authenticated above); ssh-keyscan is the
+# fallback when gh isn't ready -- trust-on-first-scan, same trust the
+# interactive prompt would have asked for.
+log_step 'known_hosts (github.com)'
+known_hosts="$HOME/.ssh/known_hosts"
+if [[ -f "$known_hosts" ]] && grep -q '^github\.com ' "$known_hosts"; then
+    log_info 'github.com already present in known_hosts.'
+else
+    host_lines=''
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+        host_lines=$(gh api meta --jq '.ssh_keys[]' 2>/dev/null | sed 's/^/github.com /' || true)
+    fi
+    if [[ -z "$host_lines" ]]; then
+        host_lines=$(ssh-keyscan -t ed25519,ecdsa,rsa github.com 2>/dev/null || true)
+    fi
+    if [[ -n "$host_lines" ]]; then
+        printf '%s\n' "$host_lines" >> "$known_hosts"
+        chmod 644 "$known_hosts"
+        log_info "Seeded github.com host key(s) into known_hosts."
+    else
+        log_info 'Could not fetch host keys (offline?); the first ssh connection will prompt.'
+    fi
+fi
+
 log_step 'Done'
 log_info 'Test with: ssh -T git@github.com'

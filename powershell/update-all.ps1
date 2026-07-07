@@ -40,8 +40,17 @@ else { Write-Info 'uv not installed; skipping.' }
 
 Write-Step 'npm globals'
 if (Get-Command npm -ErrorAction SilentlyContinue) {
-    npm update -g
-    if ($LASTEXITCODE -ne 0) { $failed += 'npm' }
+    # NOT `npm update -g`: that respects semver ranges and never crosses a
+    # major version, so globals silently pinned to an old major. Ask npm
+    # what's outdated (parseable field 4 = name@latest, exits 1 when
+    # anything is -- not an error here) and install those explicitly.
+    $outdated = @(npm outdated -g --parseable 2>$null |
+        ForEach-Object { ($_ -split ':')[3] } | Where-Object { $_ })
+    if ($outdated) {
+        npm install -g @outdated
+        if ($LASTEXITCODE -ne 0) { $failed += 'npm' }
+    }
+    else { Write-Info 'All npm globals already at latest.' }
 }
 else { Write-Info 'npm not installed; skipping.' }
 

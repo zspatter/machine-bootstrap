@@ -47,7 +47,17 @@ fi
 
 log_step 'npm globals'
 if command -v npm >/dev/null 2>&1; then
-    npm update -g || failed+=(npm)
+    # NOT `npm update -g`: that respects semver ranges and never crosses a
+    # major version, so globals silently pinned to an old major. Ask npm
+    # what's outdated (parseable field 4 = name@latest; exits 1 when
+    # anything is -- not an error here) and install those explicitly.
+    outdated=$(npm outdated -g --parseable 2>/dev/null | cut -d: -f4 || true)
+    if [[ -n "$outdated" ]]; then
+        # shellcheck disable=SC2086  # word-splitting the name@latest list is the point
+        npm install -g $outdated || failed+=(npm)
+    else
+        log_info 'All npm globals already at latest.'
+    fi
 else
     log_info 'npm not installed; skipping.'
 fi
