@@ -30,7 +30,7 @@ jobs:
         os: [ubuntu-latest, ubuntu-22.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run setup-git.sh
         run: ./shell/setup-git.sh
@@ -52,7 +52,7 @@ jobs:
   uv-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run setup-git.ps1
         shell: pwsh
@@ -103,7 +103,7 @@ jobs:
       - name: Install checkout prerequisites
         run: ${{ matrix.prereq }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run setup-uv.sh
         run: ./shell/setup-uv.sh
@@ -168,7 +168,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run setup-uv.sh (foundation -- nvim tooling's ruff install rides uv)
         run: ./shell/setup-uv.sh
@@ -245,7 +245,7 @@ jobs:
   tools-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # shell: powershell (5.1) is the point -- this script is the rung
       # below pwsh 7 and must run on a clean machine's stock shell.
@@ -364,7 +364,7 @@ jobs:
       - name: Install checkout prerequisites
         run: ${{ matrix.prereq }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run setup-uv.sh (foundation -- nvim tooling's ruff install rides uv)
         run: ./shell/setup-uv.sh
@@ -439,7 +439,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run setup-gh-cli.sh
         run: ./shell/setup-gh-cli.sh
@@ -450,7 +450,7 @@ jobs:
   gh-cli-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run setup-gh-cli.ps1
         shell: pwsh
@@ -480,7 +480,7 @@ jobs:
       - name: Install checkout prerequisites
         run: ${{ matrix.prereq }}
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run setup-gh-cli.sh
         run: ./shell/setup-gh-cli.sh
