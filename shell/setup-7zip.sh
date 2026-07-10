@@ -73,8 +73,11 @@ main() {
             else
                 log_step 'Installing Keka (brew cask)'
                 run_brew install --cask keka
-                log_info 'Manual once: enable the Finder extension in Keka settings (context menu / Services); optionally set Keka as the default archiver.'
             fi
+            # printed every run, like setup-typora's license reminder:
+            # macOS won't let an installer flip this, and it's the whole
+            # point of having Keka
+            log_info 'MANUAL STEP: enable the Finder extension in Keka settings (that is the context-menu/Services integration); optionally set Keka as the default archiver.'
             ;;
         *)
             log_info "Unsupported OS: $(uname -s). See setup-7zip.ps1 for Windows."

@@ -1,18 +1,25 @@
 <#
 .SYNOPSIS
-    Fresh-machine bootstrap: installs 7-Zip via winget.
+    Fresh-machine bootstrap: installs NanaZip (the maintained 7-Zip fork)
+    via winget.
 
 .NOTES
     Safe to re-run.
 
-    Context menu: the 7-Zip installer registers its classic shell
-    extension itself -- nothing to wire here. On Windows 11 that menu
-    lives under "Show more options" (Shift+F10 / Shift+RightClick): NO
-    7-Zip release implements the modern top-level menu (verified against
-    the full changelog through 26.02). If top-level entries ever matter
-    enough, NanaZip (winget id M2Team.NanaZip) is the actively
-    maintained 7-Zip fork packaged as MSIX with native Windows 11
-    context-menu integration -- a drop-in swap for this script.
+    Why NanaZip over classic 7-Zip (2026-07 decision): the same 7-Zip
+    engine underneath -- M2-Team rebases on upstream releases -- plus
+    the Windows 11 TOP-LEVEL context menu that upstream has never
+    implemented (verified against the 7-Zip changelog through 26.02;
+    classic 7-Zip only ever appears under "Show more options"), a
+    modernized UI, extra codecs (Zstandard/Brotli/LZ4), and Store-based
+    auto-updates. Trade-offs, accepted: it can lag upstream briefly
+    after each 7-Zip release, and the CLI is NanaZipC (an app-execution
+    alias) rather than 7z.exe at a fixed path -- nothing in these repos
+    shells out to either. If the fork ever stagnates, classic 7-Zip is
+    the fallback: swap the id back to 7zip.7zip.
+
+    The MSIX registers the Win11 context menu itself; Explorer may need
+    a restart (or a fresh session) before the entry shows up.
 #>
 
 [CmdletBinding()]
@@ -23,30 +30,35 @@ $ErrorActionPreference = 'Stop'
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-Info($msg) { Write-Host "    $msg" -ForegroundColor DarkGray }
 
-Write-Step 'Checking for 7-Zip'
-$SevenZip = Join-Path $env:ProgramFiles '7-Zip\7z.exe'
-if (Test-Path $SevenZip) {
-    Write-Info "Found $SevenZip"
-    Write-Info 'To update: winget upgrade 7zip.7zip (or update-all.ps1).'
-    Write-Step 'Done'
-    exit 0
-}
-
-if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Info 'No winget available; install manually from https://www.7-zip.org, then re-run.'
-    exit 1
-}
-
-Write-Info 'Installing via winget.'
-winget install -e --id 7zip.7zip --accept-package-agreements --accept-source-agreements
-if ($LASTEXITCODE -ne 0) { throw "winget install exited with code $LASTEXITCODE" }
-
-Write-Step 'Verifying'
-if (Test-Path $SevenZip) {
-    Write-Info "$SevenZip installed (context menu under Win11's 'Show more options')."
+Write-Step 'Checking for NanaZip'
+$found = $false
+if (Get-Command NanaZipC -ErrorAction SilentlyContinue) {
+    $found = $true
 }
 else {
-    throw '7z.exe not found after install'
+    winget list --id M2Team.NanaZip --accept-source-agreements 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { $found = $true }
+}
+
+if ($found) {
+    Write-Info 'NanaZip already installed (updates arrive via the Store / winget upgrade).'
+}
+else {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Info 'No winget available; install NanaZip from the Microsoft Store, then re-run.'
+        exit 1
+    }
+    Write-Info 'Installing via winget.'
+    winget install -e --id M2Team.NanaZip --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) { throw "winget install exited with code $LASTEXITCODE" }
+    Write-Info 'Installed. Explorer may need a restart before the context menu appears.'
+}
+
+# Doubled context menus are the one migration hazard: classic 7-Zip's
+# shell extension stays registered until it's uninstalled.
+if (Test-Path (Join-Path $env:ProgramFiles '7-Zip\7z.exe')) {
+    Write-Info 'Classic 7-Zip is also installed -- remove it to avoid duplicate menu entries:'
+    Write-Info '  winget uninstall 7zip.7zip'
 }
 
 Write-Step 'Done'
