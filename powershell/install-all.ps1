@@ -35,6 +35,7 @@ $Scripts = @(
     'setup-obsidian.ps1'
     'setup-vscode.ps1'
     'setup-zed.ps1'
+    'setup-typora.ps1'
     'setup-zen-browser.ps1'
     'setup-librewolf.ps1'
     'setup-claude-desktop.ps1'
