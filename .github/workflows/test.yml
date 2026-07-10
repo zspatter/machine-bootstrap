@@ -176,6 +176,9 @@ jobs:
       - name: Run setup-cli-tools.sh
         run: ./shell/setup-cli-tools.sh
 
+      - name: Run setup-7zip.sh
+        run: ./shell/setup-7zip.sh
+
       - name: Run setup-nvim.sh
         run: ./shell/setup-nvim.sh
 
@@ -205,6 +208,9 @@ jobs:
 
       - name: Run setup-zed.sh
         run: ./shell/setup-zed.sh
+
+      - name: Run setup-typora.sh (Typora on apt distros, MarkText elsewhere)
+        run: ./shell/setup-typora.sh
 
       - name: Run setup-zen-browser.sh
         run: ./shell/setup-zen-browser.sh
@@ -257,6 +263,10 @@ jobs:
         shell: pwsh
         run: .\powershell\setup-uv.ps1
 
+      - name: Run setup-7zip.ps1 (NanaZip)
+        shell: pwsh
+        run: .\powershell\setup-7zip.ps1
+
       - name: Run setup-cli-tools.ps1
         shell: pwsh
         run: .\powershell\setup-cli-tools.ps1
@@ -300,6 +310,10 @@ jobs:
       - name: Run setup-zed.ps1
         shell: pwsh
         run: .\powershell\setup-zed.ps1
+
+      - name: Run setup-typora.ps1 (install + theme set)
+        shell: pwsh
+        run: .\powershell\setup-typora.ps1
 
       - name: Run setup-zen-browser.ps1
         shell: pwsh
@@ -372,6 +386,9 @@ jobs:
       - name: Run setup-cli-tools.sh
         run: ./shell/setup-cli-tools.sh
 
+      - name: Run setup-7zip.sh
+        run: ./shell/setup-7zip.sh
+
       - name: Run setup-nvim.sh
         run: ./shell/setup-nvim.sh
 
@@ -398,6 +415,9 @@ jobs:
 
       - name: Run setup-zed.sh
         run: ./shell/setup-zed.sh
+
+      - name: Run setup-typora.sh (Typora on apt distros, MarkText elsewhere)
+        run: ./shell/setup-typora.sh
 
       - name: Run setup-zen-browser.sh
         run: ./shell/setup-zen-browser.sh
