@@ -7,10 +7,11 @@
 #            on distros that predate the official package.
 #   pacman : 7zip (official, replaced p7zip).
 #   brew   : sevenzip -- the official 7zz from 7-zip.org, NOT the stale
-#            p7zip fork that used to be the least-bad macOS answer. For
-#            a GUI/Finder integration on macOS, Keka (brew cask keka,
-#            7z-based) is the add-on to reach for; not installed by
-#            default since the CLI covers scripted use.
+#            p7zip fork that used to be the least-bad macOS answer --
+#            PLUS Keka (cask), the 7z-based GUI that provides the
+#            in-Finder integration 7zz can't. One manual toggle after
+#            Keka's first launch: enable its Finder extension in Keka
+#            settings (and optionally set it as the default archiver).
 #
 # Safe to re-run.
 
@@ -36,15 +37,12 @@ run_brew() {
 }
 
 main() {
-    if command -v 7zz >/dev/null 2>&1 || command -v 7z >/dev/null 2>&1; then
-        log_step '7-Zip already installed'
-        log_info "$(command -v 7zz 2>/dev/null || command -v 7z)"
-        exit 0
-    fi
-
     case "$(uname -s)" in
         Linux)
-            if command -v apt-get >/dev/null 2>&1; then
+            if command -v 7zz >/dev/null 2>&1 || command -v 7z >/dev/null 2>&1; then
+                log_step '7-Zip already installed'
+                log_info "$(command -v 7zz 2>/dev/null || command -v 7z)"
+            elif command -v apt-get >/dev/null 2>&1; then
                 log_step 'Installing 7zip (apt)'
                 run_privileged apt-get update
                 run_privileged apt-get install -y 7zip \
@@ -58,13 +56,25 @@ main() {
             fi
             ;;
         Darwin)
-            log_step 'Installing sevenzip (brew)'
             if ! command -v brew >/dev/null 2>&1; then
                 log_info 'Homebrew not found. Install it from https://brew.sh, then re-run.'
                 exit 1
             fi
-            run_brew install sevenzip
-            log_info 'GUI wanted too? Keka (brew install --cask keka) is the 7z-based pick.'
+            # each piece guarded separately so a provisioned machine
+            # still picks up whichever half it's missing
+            if command -v 7zz >/dev/null 2>&1; then
+                log_step 'sevenzip already installed'
+            else
+                log_step 'Installing sevenzip (brew)'
+                run_brew install sevenzip
+            fi
+            if [[ -d '/Applications/Keka.app' ]]; then
+                log_step 'Keka already installed'
+            else
+                log_step 'Installing Keka (brew cask)'
+                run_brew install --cask keka
+                log_info 'Manual once: enable the Finder extension in Keka settings (context menu / Services); optionally set Keka as the default archiver.'
+            fi
             ;;
         *)
             log_info "Unsupported OS: $(uname -s). See setup-7zip.ps1 for Windows."
