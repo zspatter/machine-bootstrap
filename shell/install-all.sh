@@ -16,6 +16,7 @@ SCRIPTS=(
     setup-git.sh
     setup-uv.sh
     setup-cli-tools.sh
+    setup-7zip.sh
     setup-nvim.sh
     setup-nvim-tooling.sh
     setup-oh-my-posh.sh
@@ -27,6 +28,7 @@ SCRIPTS=(
     setup-obsidian.sh
     setup-vscode.sh
     setup-zed.sh
+    setup-typora.sh
     setup-zen-browser.sh
     setup-librewolf.sh
     setup-claude-desktop.sh

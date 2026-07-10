@@ -25,6 +25,7 @@ $Scripts = @(
     'setup-git.ps1'
     'setup-uv.ps1'
     'setup-cli-tools.ps1'
+    'setup-7zip.ps1'
     'setup-nvim.ps1'
     'setup-nvim-tooling.ps1'
     'setup-oh-my-posh.ps1'
