@@ -19,6 +19,11 @@
 #     prettier (markdown formatter): npm -g
 #   marksman (markdown LSP)      : brew on macOS; elsewhere GitHub release
 #                                  binary -> ~/.local/bin (no apt package)
+#   pandoc + typst (markdown     : pacman/brew have both; apt's pandoc is
+#     export, :MdExport)           too old for --pdf-engine=typst (needs
+#                                  >= 3.1.2; debian 12 ships 2.17) and has
+#                                  no typst at all -> GitHub release
+#                                  binaries -> ~/.local, tree-sitter-style
 #   roslyn-language-server (C#)  : dotnet tool from the Azure DevOps feed
 #                                  (VS Code's source; nuget.org lags).
 #                                  Skipped when no .NET SDK is present.
@@ -98,7 +103,8 @@ install_packaged_tools() {
             elif command -v pacman >/dev/null 2>&1; then
                 # Arch packages the whole set -- no GitHub-binary phase needed.
                 run_privileged pacman -Syu --noconfirm --needed \
-                    shellcheck shfmt nodejs npm lua-language-server stylua
+                    shellcheck shfmt nodejs npm lua-language-server stylua \
+                    pandoc-cli typst
             else
                 log_info 'No supported package manager (apt/pacman); install manually, then re-run.'
                 exit 1
@@ -109,7 +115,7 @@ install_packaged_tools() {
                 log_info 'Homebrew not found. Install it from https://brew.sh, then re-run.'
                 exit 1
             fi
-            run_brew install shellcheck shfmt node lua-language-server stylua marksman
+            run_brew install shellcheck shfmt node lua-language-server stylua marksman pandoc typst
             ;;
         *)
             log_info "Unsupported OS: $(uname -s). See setup-nvim-tooling.ps1 for Windows."
@@ -200,6 +206,64 @@ install_marksman() {
     install -m 0755 "$tmpdir/marksman" "$HOME/.local/bin/marksman"
     rm -rf "$tmpdir"
     log_info "Installed marksman $("$HOME/.local/bin/marksman" --version 2>/dev/null || echo '(version check needs a new shell)')"
+}
+
+install_pandoc() {
+    # Markdown export (nvim's :MdExport). Version-gated like the
+    # tree-sitter CLI: --pdf-engine=typst needs pandoc >= 3.1.2, and apt
+    # ships far older (debian 12: 2.17), so Linux gets the official
+    # release tarball regardless of distro. pacman/brew installed a
+    # current one already and skip out on the version check.
+    local required='3.1.2' current=''
+    if command -v pandoc >/dev/null 2>&1; then
+        current=$(pandoc --version 2>/dev/null | awk 'NR==1 {print $2}' || true)
+    fi
+    if [[ -n "$current" && "$(printf '%s\n' "$required" "$current" | sort -V | head -1)" == "$required" ]]; then
+        log_info "pandoc $current already installed (>= $required)"
+        return
+    fi
+    log_step 'Installing pandoc (GitHub release tarball)'
+    local arch tag tmpdir
+    case "$(uname -m)" in
+        x86_64) arch='amd64' ;;
+        aarch64 | arm64) arch='arm64' ;;
+        *) log_info "Unsupported architecture: $(uname -m)"; exit 1 ;;
+    esac
+    tag=$(fetch_latest_tag 'jgm/pandoc')
+    tmpdir=$(mktemp -d)
+    fetch "https://github.com/jgm/pandoc/releases/download/$tag/pandoc-$tag-linux-$arch.tar.gz" \
+         "$tmpdir/pandoc.tar.gz"
+    rm -rf "$HOME/.local/opt/pandoc"
+    mkdir -p "$HOME/.local/opt/pandoc"
+    tar -xzf "$tmpdir/pandoc.tar.gz" -C "$HOME/.local/opt/pandoc" --strip-components=1
+    rm -rf "$tmpdir"
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$HOME/.local/opt/pandoc/bin/pandoc" "$HOME/.local/bin/pandoc"
+    log_info "Installed pandoc $tag"
+}
+
+install_typst() {
+    # The :MdExport pdf engine. No apt package; the musl build is static,
+    # so there's no glibc fallback dance to do. pacman/brew covered it.
+    command -v typst >/dev/null 2>&1 && return
+    log_step 'Installing typst (GitHub release binary)'
+    local arch
+    case "$(uname -m)" in
+        x86_64) arch='x86_64' ;;
+        aarch64 | arm64) arch='aarch64' ;;
+        *) log_info "Unsupported architecture: $(uname -m)"; exit 1 ;;
+    esac
+    local asset="typst-$arch-unknown-linux-musl"
+    [[ "$(uname -s)" == 'Darwin' ]] && asset="typst-$arch-apple-darwin"
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    fetch "https://github.com/typst/typst/releases/latest/download/$asset.tar.xz" \
+         "$tmpdir/typst.tar.xz"
+    tar -xJf "$tmpdir/typst.tar.xz" -C "$tmpdir"
+    mkdir -p "$HOME/.local/bin"
+    install -m 0755 "$tmpdir/$asset/typst" "$HOME/.local/bin/typst"
+    rm -rf "$tmpdir"
+    log_info "Installed typst $("$HOME/.local/bin/typst" --version 2>/dev/null | awk '{print $2}' || echo '(version check needs a new shell)')"
 }
 
 fetch_latest_tag() {
@@ -379,8 +443,8 @@ verify() {
     log_step 'Verifying'
     export PATH="$HOME/.local/bin:$PATH"
     local missing=0
-    local expected=(lua-language-server marksman shellcheck shfmt stylua ruff
-                    pyright-langserver bash-language-server tree-sitter
+    local expected=(lua-language-server marksman pandoc typst shellcheck shfmt stylua
+                    ruff pyright-langserver bash-language-server tree-sitter
                     vscode-json-language-server yaml-language-server taplo prettier)
     # roslyn only expected where dotnet exists (see install_roslyn)
     command -v dotnet >/dev/null 2>&1 && expected+=(roslyn-language-server)
@@ -399,6 +463,8 @@ export PATH="$HOME/.local/bin:$PATH"
 install_packaged_tools
 install_github_binaries
 install_marksman
+install_pandoc
+install_typst
 install_treesitter_toolchain
 install_npm_servers
 install_roslyn

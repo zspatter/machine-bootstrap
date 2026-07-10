@@ -11,7 +11,8 @@
     linting.lua / formatting.lua):
 
       lua-language-server, marksman (markdown),
-        shellcheck, shfmt, stylua                     : winget
+        shellcheck, shfmt, stylua,
+        pandoc + typst (markdown export: :MdExport)   : winget
       tree-sitter-cli                                 : winget (>=0.26.1)
       MSVC Build Tools (VC workload)                  : winget -- the C compiler
         nvim-treesitter parser compiles need; cc discovers it via vswhere, so
@@ -64,10 +65,12 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
 $WingetTools = [ordered]@{
     'lua-language-server' = 'LuaLS.lua-language-server'
     'marksman'            = 'Artempyanykh.Marksman'
+    'pandoc'              = 'JohnMacFarlane.Pandoc'
     'shellcheck'          = 'koalaman.shellcheck'
     'shfmt'               = 'mvdan.shfmt'
     'stylua'              = 'JohnnyMorganz.StyLua'
     'tree-sitter'         = 'tree-sitter.tree-sitter-cli'
+    'typst'               = 'Typst.Typst'
 }
 
 Write-Step 'Installing winget-packaged tools'
@@ -200,7 +203,8 @@ Write-Step 'Verifying'
 $failed = @()
 $expected = @('lua-language-server', 'marksman', 'shellcheck', 'shfmt', 'stylua', 'ruff',
               'pyright-langserver', 'bash-language-server', 'tree-sitter',
-              'vscode-json-language-server', 'yaml-language-server', 'taplo', 'prettier')
+              'vscode-json-language-server', 'yaml-language-server', 'taplo', 'prettier',
+              'pandoc', 'typst')
 # roslyn only expected where dotnet exists (see install step above)
 if (Get-Command dotnet -ErrorAction SilentlyContinue) { $expected += 'roslyn-language-server' }
 foreach ($cmd in $expected) {
