@@ -11,6 +11,12 @@
 # marketplace/telemetry differences if they matter to you. macOS uses the
 # brew cask (proprietary build).
 #
+# Extension sync is a fixed-path contract (like PES in setup-nvim-tooling):
+# sym-lattice's symlink-manager links dotfiles/vscode/extensions.txt to
+# ~/.vscode/extensions.txt, and anything listed there installs if missing.
+# Never uninstalls -- prune by hand. No file = no-op, so this script stays
+# usable standalone.
+#
 # Safe to re-run.
 
 set -euo pipefail
@@ -51,10 +57,31 @@ install_vscode_apt() {
     run_privileged apt-get install -y code
 }
 
+sync_extensions() {
+    local ext_file="$HOME/.vscode/extensions.txt"
+    command -v code >/dev/null 2>&1 || return 0
+    [[ -f "$ext_file" ]] || { log_info "No $ext_file -- extension sync skipped (symlink-manager deploys it)."; return 0; }
+    log_step 'Syncing VS Code extensions'
+    local installed ext
+    installed=$(code --list-extensions 2>/dev/null)
+    while IFS= read -r ext; do
+        ext="${ext%%#*}"
+        ext="$(echo "$ext" | tr -d '[:space:]')"
+        [[ -z "$ext" ]] && continue
+        if grep -qix -- "$ext" <<<"$installed"; then
+            log_info "$ext already installed"
+        else
+            log_info "Installing $ext"
+            code --install-extension "$ext" >/dev/null || log_info "FAILED: $ext"
+        fi
+    done <"$ext_file"
+}
+
 main() {
     if command -v code >/dev/null 2>&1; then
         log_step 'VS Code already installed'
         log_info "$(code --version 2>/dev/null | head -n1) at $(command -v code)"
+        sync_extensions
         exit 0
     fi
 
@@ -91,6 +118,7 @@ main() {
 
     log_step 'Verifying'
     log_info "$(code --version 2>/dev/null | head -n1) at $(command -v code)"
+    sync_extensions
     log_step 'Done'
 }
 
