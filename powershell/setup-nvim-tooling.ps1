@@ -10,14 +10,16 @@
     lives. Tool inventory (driven by that config's lsp.lua /
     linting.lua / formatting.lua):
 
-      lua-language-server, shellcheck, shfmt, stylua  : winget
+      lua-language-server, marksman (markdown),
+        shellcheck, shfmt, stylua                     : winget
       tree-sitter-cli                                 : winget (>=0.26.1)
       MSVC Build Tools (VC workload)                  : winget -- the C compiler
         nvim-treesitter parser compiles need; cc discovers it via vswhere, so
         no PATH/vcvars setup is required
       pyright, bash-language-server,
         vscode-langservers-extracted (json),
-        yaml-language-server, @taplo/cli (toml)       : npm (Node LTS via winget)
+        yaml-language-server, @taplo/cli (toml),
+        prettier (markdown formatter)                 : npm (Node LTS via winget)
       roslyn-language-server (C#)                     : dotnet tool from the Azure
         DevOps feed (same source VS Code uses; nuget.org lags). Skipped when no
         .NET SDK is present -- plugins/roslyn.lua gates on the exe either way.
@@ -61,6 +63,7 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
 # --- winget-packaged tools (command name -> package id) ---
 $WingetTools = [ordered]@{
     'lua-language-server' = 'LuaLS.lua-language-server'
+    'marksman'            = 'Artempyanykh.Marksman'
     'shellcheck'          = 'koalaman.shellcheck'
     'shfmt'               = 'mvdan.shfmt'
     'stylua'              = 'JohnnyMorganz.StyLua'
@@ -117,7 +120,7 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
     }
 }
 # npm i -g installs AND updates -- this doubles as the update path for all.
-npm install -g pyright bash-language-server vscode-langservers-extracted yaml-language-server '@taplo/cli'
+npm install -g pyright bash-language-server vscode-langservers-extracted yaml-language-server '@taplo/cli' prettier
 if ($LASTEXITCODE -ne 0) { throw "npm install exited with code $LASTEXITCODE" }
 
 # --- Roslyn C# language server (dotnet global tool) ---
@@ -195,9 +198,9 @@ else {
 # --- verify everything the nvim config launches ---
 Write-Step 'Verifying'
 $failed = @()
-$expected = @('lua-language-server', 'shellcheck', 'shfmt', 'stylua', 'ruff',
+$expected = @('lua-language-server', 'marksman', 'shellcheck', 'shfmt', 'stylua', 'ruff',
               'pyright-langserver', 'bash-language-server', 'tree-sitter',
-              'vscode-json-language-server', 'yaml-language-server', 'taplo')
+              'vscode-json-language-server', 'yaml-language-server', 'taplo', 'prettier')
 # roslyn only expected where dotnet exists (see install step above)
 if (Get-Command dotnet -ErrorAction SilentlyContinue) { $expected += 'roslyn-language-server' }
 foreach ($cmd in $expected) {

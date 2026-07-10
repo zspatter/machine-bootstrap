@@ -15,7 +15,10 @@
 #                                  GitHub release binaries into ~/.local
 #   pyright, bash-language-server,
 #     vscode-langservers-extracted (json),
-#     yaml-language-server, @taplo/cli (toml): npm -g
+#     yaml-language-server, @taplo/cli (toml),
+#     prettier (markdown formatter): npm -g
+#   marksman (markdown LSP)      : brew on macOS; elsewhere GitHub release
+#                                  binary -> ~/.local/bin (no apt package)
 #   roslyn-language-server (C#)  : dotnet tool from the Azure DevOps feed
 #                                  (VS Code's source; nuget.org lags).
 #                                  Skipped when no .NET SDK is present.
@@ -106,7 +109,7 @@ install_packaged_tools() {
                 log_info 'Homebrew not found. Install it from https://brew.sh, then re-run.'
                 exit 1
             fi
-            run_brew install shellcheck shfmt node lua-language-server stylua
+            run_brew install shellcheck shfmt node lua-language-server stylua marksman
             ;;
         *)
             log_info "Unsupported OS: $(uname -s). See setup-nvim-tooling.ps1 for Windows."
@@ -157,6 +160,46 @@ install_github_binaries() {
         chmod +x "$HOME/.local/bin/stylua"
         rm -rf "$tmpdir"
     fi
+}
+
+install_marksman() {
+    # Markdown LSP (the nvim config's marksman entry in lsp.lua). No apt or
+    # npm package; single static binary from GitHub releases. brew installed
+    # it on macOS already (install_packaged_tools), so this no-ops there via
+    # the presence check.
+    command -v marksman >/dev/null 2>&1 && return
+    log_step 'Installing marksman (GitHub release binary)'
+    local arch
+    case "$(uname -m)" in
+        x86_64) arch='x64' ;;
+        aarch64 | arm64) arch='arm64' ;;
+        *) log_info "Unsupported architecture: $(uname -m)"; exit 1 ;;
+    esac
+    local asset="marksman-linux-$arch"
+    [[ "$(uname -s)" == 'Darwin' ]] && asset='marksman-macos'
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    fetch "https://github.com/artempyanykh/marksman/releases/latest/download/$asset" \
+         "$tmpdir/marksman"
+    chmod +x "$tmpdir/marksman"
+    # Same glibc trap as the tree-sitter CLI: the default linux build links
+    # against a recent glibc. marksman publishes self-contained musl builds,
+    # so the fallback stays first-party instead of dropping to npm.
+    if ! "$tmpdir/marksman" --version >/dev/null 2>&1 && [[ "$(uname -s)" == 'Linux' ]]; then
+        log_info 'Release binary needs a newer glibc than this distro has; using the musl build.'
+        fetch "https://github.com/artempyanykh/marksman/releases/latest/download/marksman-linux-musl-$arch" \
+             "$tmpdir/marksman"
+        chmod +x "$tmpdir/marksman"
+        if ! "$tmpdir/marksman" --version >/dev/null 2>&1; then
+            rm -rf "$tmpdir"
+            log_info 'musl build failed to exec too -- install marksman manually, then re-run.'
+            exit 1
+        fi
+    fi
+    mkdir -p "$HOME/.local/bin"
+    install -m 0755 "$tmpdir/marksman" "$HOME/.local/bin/marksman"
+    rm -rf "$tmpdir"
+    log_info "Installed marksman $("$HOME/.local/bin/marksman" --version 2>/dev/null || echo '(version check needs a new shell)')"
 }
 
 fetch_latest_tag() {
@@ -243,7 +286,7 @@ install_npm_servers() {
     # a re-run on a provisioned machine shouldn't hit a password wall just
     # to check for updates (same principle as the apt phase above).
     local servers=(pyright bash-language-server vscode-langservers-extracted
-                   yaml-language-server '@taplo/cli')
+                   yaml-language-server '@taplo/cli' prettier)
     local prefix
     prefix=$(npm config get prefix)
     if [[ -w "$prefix/lib" || -w "$prefix" || "$(id -u)" -eq 0 ]]; then
@@ -251,7 +294,8 @@ install_npm_servers() {
     elif command -v pyright >/dev/null 2>&1 && command -v bash-language-server >/dev/null 2>&1 \
             && command -v vscode-json-language-server >/dev/null 2>&1 \
             && command -v yaml-language-server >/dev/null 2>&1 \
-            && command -v taplo >/dev/null 2>&1; then
+            && command -v taplo >/dev/null 2>&1 \
+            && command -v prettier >/dev/null 2>&1; then
         log_info 'npm servers already installed; global npm prefix needs privileges -- re-run with sudo (or as root) to update them.'
     else
         run_privileged npm install -g "${servers[@]}"
@@ -335,9 +379,9 @@ verify() {
     log_step 'Verifying'
     export PATH="$HOME/.local/bin:$PATH"
     local missing=0
-    local expected=(lua-language-server shellcheck shfmt stylua ruff pyright-langserver
-                    bash-language-server tree-sitter vscode-json-language-server
-                    yaml-language-server taplo)
+    local expected=(lua-language-server marksman shellcheck shfmt stylua ruff
+                    pyright-langserver bash-language-server tree-sitter
+                    vscode-json-language-server yaml-language-server taplo prettier)
     # roslyn only expected where dotnet exists (see install_roslyn)
     command -v dotnet >/dev/null 2>&1 && expected+=(roslyn-language-server)
     for cmd in "${expected[@]}"; do
@@ -354,6 +398,7 @@ verify() {
 export PATH="$HOME/.local/bin:$PATH"
 install_packaged_tools
 install_github_binaries
+install_marksman
 install_treesitter_toolchain
 install_npm_servers
 install_roslyn
