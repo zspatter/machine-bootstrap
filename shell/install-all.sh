@@ -6,6 +6,10 @@
 # Python toolchain. Exits non-zero if anything failed, with a summary
 # table either way. Every underlying script is idempotent, so re-running
 # this after fixing a failure only redoes the broken pieces.
+#
+# setup-audio-eq.sh is deliberately excluded: hardware-scoped (headphone
+# EQ for a specific DAC) -- run it by hand on machines that have the
+# hardware.
 
 set -euo pipefail
 

@@ -12,6 +12,8 @@ per-tool and per-platform so each concern stays independently useful.
 
 - **`shell/`** — bash scripts for Linux and macOS
 - **`powershell/`** — PowerShell scripts for Windows
+- **`assets/`** — vendored data consumed by the scripts (currently the
+  audio-eq correction files; provenance pinned in `assets/audio-eq/README.md`)
 
 Same tool, same filename stem, one script per platform family. The only
 unpaired scripts are the ones whose tool is single-platform by nature:
@@ -28,7 +30,10 @@ if anything failed). A broken browser install can't block the Python
 toolchain, and since every script is idempotent, re-running after a fix
 only redoes the broken pieces. `setup-wsl.ps1` is excluded from the chain
 on purpose — it can require elevation and a reboot, which has no business
-mid-way through an unattended run.
+mid-way through an unattended run. `setup-audio-eq.sh`/`.ps1` are likewise
+excluded on purpose — hardware-scoped (headphone EQ for a specific DAC),
+so they belong only on machines that actually have the hardware; run them
+by hand there.
 
 ## Scripts
 
@@ -39,6 +44,19 @@ mid-way through an unattended run.
   elevated session and typically a reboot. First-run unix account
   creation is interactive by design (`--no-launch` + launch it yourself
   once). Not CI-covered: GitHub's Windows runners can't run WSL.
+- **`setup-audio-eq.sh`** / **`setup-audio-eq.ps1`** — headphone EQ
+  (Sennheiser HD 800 S, oratory1990 target) from the vendored AutoEq file
+  in `assets/audio-eq/`, one artifact consumed by both platforms. Linux
+  rides PipeWire's builtin `param_eq` (a config drop, no packages, no
+  sudo; PipeWire ≥ 1.2 enforced), with EasyEffects behind `--easyeffects`
+  for Peace-style GUI tweaking. Windows manages a `Device:`-scoped
+  `Include:` block in Equalizer APO's config.txt (elevated shell), parking
+  any Peace include to prevent double EQ; `-Peace` flips management back
+  to Peace, `-Remove`/`--remove` restore the pre-script state exactly.
+  Excluded from the chain on purpose — hardware-scoped, run by hand on
+  machines with the DAC. Not CI-covered: needs live PipeWire/APO and the
+  hardware. FiiO firmware is deliberately out of scope (Windows-only DFU
+  tooling, and flashing has no business in idempotent provisioning).
 - **`setup-uv.sh`** / **`setup-uv.ps1`** — installs [uv](https://docs.astral.sh/uv/)
   via its official standalone installer, then a current default Python
   (`uv python install --default`, so bare `python`/`python3` resolve; the

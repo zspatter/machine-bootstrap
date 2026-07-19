@@ -11,6 +11,10 @@
     require elevation and a reboot, which has no business appearing
     mid-way through an unattended chain. Run it separately.
 
+    setup-audio-eq.ps1 is deliberately excluded too: hardware-scoped
+    (headphone EQ for a specific DAC) -- run it by hand on machines that
+    have the hardware.
+
     Every underlying script is idempotent, so re-running this after
     fixing a failure only redoes the broken pieces.
 #>
